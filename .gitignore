@@ -27,6 +27,5 @@ gibber
 *.gpg
 *.env
 
-# generated files/data
-generated/*
-logs/*
+# generated files/data/logs
+server/generated/*
