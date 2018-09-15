@@ -1,8 +1,8 @@
 package server
 
 import (
+	"bufio"
 	"fmt"
-	"gibber/common"
 	"net"
 )
 
@@ -20,6 +20,7 @@ func StartServer() error {
 		return WriteLogAndReturnError("error in starting listener on host %s and port %s: %s", Host, Port, err)
 	}
 	GetLogger().Printf("started TCP listener on %s", address)
+	PrintLogo()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -36,10 +37,25 @@ func StartServer() error {
 func establishClientConnection(conn *net.Conn) {
 	// when connection is closed from client, the resource need to be released
 	defer closeClientConnection(conn)
-	client := &common.Client{}
-	client.Conn = *conn
+	client := &Client{}
+	client.User = &User{}
+	client.Connection = &Connection{}
+	client.Conn = conn
+
+	client.Reader = bufio.NewReader(*client.Conn)
+	client.Writer = bufio.NewWriter(*client.Conn)
+
 	client.ShowWelcomeMessage()
+	if client.Err != nil {
+		return
+	}
+
 	client.Authenticate()
+	if client.Err != nil {
+		return
+	}
+
+	client.ShowConnectedPeople()
 }
 
 func closeClientConnection(conn *net.Conn) {
