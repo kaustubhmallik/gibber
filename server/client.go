@@ -33,7 +33,11 @@ const (
 	PasswordMismatch = "password mismatch"
 	InvalidEmail     = "invalid email"
 	ServerError      = "server processing error"
+	EmptyInput       = "empty input"
+	ShortPassword    = "password should be at 6 characters long"
 )
+
+const EmptyString = ""
 
 func (c *Client) ShowWelcomeMessage() {
 	c.SendMessage(WelcomeMsg, true)
@@ -60,11 +64,7 @@ func (c *Client) Authenticate() {
 }
 
 func (c *Client) PromptForEmail() {
-	c.SendMessage(EmailPrompt, false)
-	if c.Err != nil {
-		GetLogger().Printf("writing email prompt message to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
-	}
-	c.User.Email = c.ReadMessage()
+	c.User.Email = c.SendAndReceiveMsg(EmailPrompt, false)
 	if c.Err != nil {
 		GetLogger().Printf("reading user email from client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 		return
@@ -137,7 +137,7 @@ func (c *Client) RegisterUser() {
 	if c.Err != nil {
 		reason := fmt.Sprintf("new user message sending failed: %s", c.Err)
 		GetLogger().Println(reason)
-		c.Err = fmt.Errorf(reason)
+		c.Err = errors.New(reason)
 		return
 	}
 
@@ -145,7 +145,7 @@ func (c *Client) RegisterUser() {
 	if c.Err != nil {
 		reason := fmt.Sprintf("reading user password failed: %s", c.Err)
 		GetLogger().Println(reason)
-		c.Err = fmt.Errorf(reason)
+		c.Err = errors.New(reason)
 		return
 	}
 	c.User.FirstName = firstName
@@ -154,7 +154,7 @@ func (c *Client) RegisterUser() {
 	if c.Err != nil {
 		reason := fmt.Sprintf("reading user last name failed: %s", c.Err)
 		GetLogger().Println(reason)
-		c.Err = fmt.Errorf(reason)
+		c.Err = errors.New(reason)
 		return
 	}
 	c.User.LastName = lastName
@@ -163,7 +163,14 @@ func (c *Client) RegisterUser() {
 	if c.Err != nil {
 		reason := fmt.Sprintf("reading user new password failed: %s", c.Err)
 		GetLogger().Println(reason)
-		c.Err = fmt.Errorf(reason)
+		c.Err = errors.New(reason)
+		return
+	}
+	if len(password) < 6 {
+		reason := fmt.Sprintf("%s password: %s", ShortPassword, password)
+		GetLogger().Println(reason)
+		c.SendMessage(ShortPassword, true)
+		c.Err = errors.New(reason)
 		return
 	}
 
@@ -186,7 +193,7 @@ func (c *Client) RegisterUser() {
 		reason := fmt.Sprintf("user %s registration failed: %s", c.User.Email, c.Err)
 		GetLogger().Println(reason)
 		c.SendMessage(FailedRegistration, true)
-		c.Err = fmt.Errorf(reason)
+		c.Err = errors.New(reason)
 		return
 	}
 
@@ -206,7 +213,20 @@ func (c *Client) SendAndReceiveMsg(msgToSend string, newline bool) (msgRecvd str
 	}
 	msgRecvd = c.ReadMessage()
 	if c.Err != nil {
-		c.Err = fmt.Errorf("reading failed: %s", c.Err)
+		reason := fmt.Sprintf("reading failed from client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+		GetLogger().Println(reason)
+		c.Err = errors.New(reason)
+		return
+	}
+	if msgRecvd == EmptyString {
+		reason := fmt.Sprintf("empty string received from client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+		GetLogger().Println(reason)
+		c.SendMessage(EmptyInput, true)
+		if c.Err != nil {
+			reason := fmt.Sprintf("sending empty input msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+			GetLogger().Println(reason)
+		}
+		c.Err = errors.New(reason)
 	}
 	return
 }
