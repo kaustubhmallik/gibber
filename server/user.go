@@ -7,6 +7,7 @@ import (
 	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/mongo"
 	"github.com/pkg/errors"
+	"regexp"
 )
 
 const UserCollection = "users"
@@ -23,18 +24,13 @@ type User struct {
 
 func CreateUser(user *User) (id interface{}, err error) {
 	var fetchUser *User
-	if !validUserEmail(user.Email) { // check for valid email - regex based
-		reason := fmt.Sprintf("invalid email %s", user.Email)
-		GetLogger().Printf(reason)
-		err = fmt.Errorf(reason)
-		return
-	}
 	if user.ExistingUser() {
 		reason := fmt.Sprintf("user %#v already exist with email %s", fetchUser, user.Email) // passed email id should be unique
 		GetLogger().Printf(reason)
-		err = fmt.Errorf(reason)
+		err = errors.New(reason)
 		return
 	}
+	user.Password = GetSHA512Encrypted(user.Password)
 	userMap := MapLowercaseKeys(structs.Map(*user))
 	collection := GetDBConn().Collection(UserCollection)
 	res, err := collection.InsertOne(context.Background(), userMap)
@@ -67,18 +63,24 @@ func GetUser(email string) (user *User, err error) {
 
 // raises an error if authentication fails due to any reason, including password mismatch
 func (user *User) AuthenticateUser(password string) (err error) {
+	fetchDBUser, err := GetUser(user.Email)
 	if err != nil {
+		reason := fmt.Sprintf("authenticate user failed: %s", err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
 		return
 	}
-	if user.Password != GetSHA512Encrypted(password) {
-		err = fmt.Errorf("password mismatch") // TODO: May be we can create a new collection just to store credential and other auth related data
+	if fetchDBUser.Password != GetSHA512Encrypted(password) {
+		reason := PasswordMismatch
+		GetLogger().Println(reason)
+		err = errors.New(reason) // TODO: May be we can create a new collection just to store credential and other auth related data
 		return
 	}
 	return
 }
 
-func (u *User) ExistingUser() (exists bool) {
-	_, err := GetUser(u.Email) // if user not exists, it will throw an error
+func (user *User) ExistingUser() (exists bool) {
+	_, err := GetUser(user.Email) // if user not exists, it will throw an error
 	if err == mongo.ErrNoDocuments {
 		return
 	}
@@ -92,7 +94,6 @@ func (u *User) ExistingUser() (exists bool) {
 	return
 }
 
-func validUserEmail(email string) bool {
-	return true
-	//return regexp.MustCompile(ValidEmailRegex).MatchString(email)
+func ValidUserEmail(email string) bool {
+	return regexp.MustCompile(ValidEmailRegex).MatchString(email)
 }

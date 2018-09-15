@@ -1,4 +1,4 @@
-package gibber
+package main
 
 import (
 	"gibber/server"

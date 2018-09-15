@@ -12,16 +12,28 @@ type Client struct {
 	*Connection
 }
 
-const WelcomeMsg = "Welcome to Gibber. Hope you have a lot to say today."
-const EmailPrompt = "\nPlease enter your email to continue.\nEmail: "
-const PasswordPrompt = "\nYou are already a registered user. Please enter password to continue.\nPassword: "
-const NewUserMsg = "You are an unregistered user. Please register yourself by providing details.\n"
-const FirstNamePrompt = "First Name: "
-const LastNamePrompt = "Last Name: "
-const SuccessfulLogin = "\nLogged In Successfully"
-const SuccessfulRegistration = "\nRegistered Successfully"
-const SetPasswordPrompt = "New Password: "
-const ConfirmSetPasswordPrompt = "Confirm Password: "
+// User Response Msgs
+const (
+	WelcomeMsg               = "Welcome to Gibber. Hope you have a lot to say today."
+	EmailPrompt              = "\nPlease enter your email to continue.\nEmail: "
+	PasswordPrompt           = "\nYou are already a registered user. Please enter password to continue.\nPassword: "
+	NewUserMsg               = "You are an unregistered user. Please register yourself by providing details.\n"
+	FirstNamePrompt          = "First Name: "
+	LastNamePrompt           = "Last Name: "
+	SuccessfulLogin          = "\nLogged In Successfully"
+	FailedLogin              = "\nLog In Failed"
+	SuccessfulRegistration   = "\nRegistered Successfully"
+	FailedRegistration       = "\nRegistration Failed"
+	SetPasswordPrompt        = "New Password: "
+	ConfirmSetPasswordPrompt = "Confirm Password: "
+)
+
+// specific errors
+const (
+	PasswordMismatch = "password mismatch"
+	InvalidEmail     = "invalid email"
+	ServerError      = "server processing error"
+)
 
 func (c *Client) ShowWelcomeMessage() {
 	c.SendMessage(WelcomeMsg, true)
@@ -32,6 +44,9 @@ func (c *Client) ShowWelcomeMessage() {
 
 func (c *Client) Authenticate() {
 	c.PromptForEmail()
+	if c.Err != nil {
+		return
+	}
 	exists := c.ExistingUser()
 	if c.Err != nil {
 		return
@@ -52,6 +67,16 @@ func (c *Client) PromptForEmail() {
 	c.User.Email = c.ReadMessage()
 	if c.Err != nil {
 		GetLogger().Printf("reading user email from client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+		return
+	}
+	if !ValidUserEmail(c.User.Email) { // check for valid email - regex based
+		GetLogger().Printf("invalid email %s", c.User.Email)
+		c.SendMessage(InvalidEmail, true)
+		if c.Err != nil {
+			GetLogger().Printf("sending invalud email msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+			return
+		}
+		c.Err = errors.New(InvalidEmail)
 	}
 	return
 }
@@ -89,7 +114,13 @@ func (c *Client) LoginUser() {
 	if c.Err != nil {
 		reason := fmt.Sprintf("user %s authentication failed: %s", c.User.Email, c.Err)
 		GetLogger().Println(reason)
-		c.Err = fmt.Errorf(reason)
+		if c.Err.Error() == PasswordMismatch {
+			c.SendMessage(FailedLogin+": "+PasswordMismatch, true)
+		} else {
+			c.SendMessage(FailedLogin+": "+ServerError, true)
+		}
+		c.Err = errors.New(reason)
+		return
 	}
 	GetLogger().Printf("user %s successfully logged in", c.User.Email)
 	c.SendMessage(SuccessfulLogin, true)
@@ -154,7 +185,9 @@ func (c *Client) RegisterUser() {
 	if c.Err != nil {
 		reason := fmt.Sprintf("user %s registration failed: %s", c.User.Email, c.Err)
 		GetLogger().Println(reason)
+		c.SendMessage(FailedRegistration, true)
 		c.Err = fmt.Errorf(reason)
+		return
 	}
 
 	GetLogger().Printf("user %s successfully regsistered", c.User)
