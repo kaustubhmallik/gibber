@@ -33,7 +33,7 @@ const (
 
 // specific errors
 const (
-	PasswordMismatch = "Password mismatch"
+	PasswordMismatch = "Incorrect password"
 	InvalidEmail     = "Invalid email"
 	ServerError      = "Server processing error"
 	EmptyInput       = "Empty input\n"
@@ -46,14 +46,14 @@ const (
 const (
 	DashboardHeader = "********************** Welcome to Gibber ************************\n\nPlease select one of " +
 		"the option from below.\n"
-	UserMenu = "0 - Exit\n1 - Start/Resume Chat\n2 - Add new connection\n3 - See new inviations\n4 - Change password\n" +
+	UserMenu = "\n0 - Exit\n1 - Start/Resume Chat\n2 - Add new connection\n3 - See new inviations\n4 - Change password\n" +
 		"5 - Change Name\n\nEnter a choice: "
 )
 
 const (
 	ExitChoice = iota
 	StartChatChoice
-	AddConnChoice
+	SendInvitationChoice
 	SeeInvitationChoice
 	ChangePasswordChoice
 	ChangeNameChoice
@@ -213,11 +213,9 @@ func (c *Client) RegisterUser() {
 		c.Err = errors.New(reason)
 		return
 	}
-	if len(password) < 6 {
-		reason := fmt.Sprintf("%s password: %s", ShortPassword, password)
-		GetLogger().Println(reason)
+	c.Err = ValidatePassword(password)
+	if c.Err != nil {
 		c.SendMessage(ShortPassword, true)
-		c.Err = errors.New(reason)
 		return
 	}
 
@@ -296,10 +294,15 @@ func (c *Client) UserDashboard() {
 			c.ExitClient()
 			exit = true
 		case StartChatChoice:
-		case AddConnChoice:
+			c.StarChat()
+		case SendInvitationChoice:
+			c.SendInvitation()
 		case SeeInvitationChoice:
+			c.SeeInvitation()
 		case ChangePasswordChoice:
+			c.ChangePassword()
 		case ChangeNameChoice:
+			c.ChangeName()
 		default:
 			c.SendMessage(InvalidInput, true)
 			continue
@@ -311,10 +314,93 @@ func (c *Client) ShowMenu() string {
 	return c.SendAndReceiveMsg(UserMenu, false)
 }
 
+func (c *Client) StarChat() {
+
+}
+
+func (c *Client) SendInvitation() {
+
+}
+
+func (c *Client) SeeInvitation() {
+
+}
+
+func (c *Client) ChangePassword() {
+	var failureCount int
+	for failureCount = 0; failureCount < 3; failureCount++ {
+		currPassword := c.SendAndReceiveMsg("\nEnter your current password: ", false)
+		if c.Err != nil {
+			continue
+		}
+		if GetSHA512Encrypted(currPassword) != c.User.Password {
+			reason := fmt.Sprintf("user %s entered incorrect password: %s", c.User.Email, c.Err)
+			GetLogger().Println(reason)
+			if c.Err.Error() == PasswordMismatch {
+				c.SendMessage(PasswordMismatch, true)
+			} else {
+				c.SendMessage(ServerError, true)
+			}
+			c.Err = errors.New(reason)
+			continue
+		}
+		break
+	}
+	if failureCount == 3 {
+		return // user unable to enter current password
+	}
+	for failureCount = 0; failureCount < 3; failureCount++ {
+		newPassword := c.SendAndReceiveMsg("\nEnter your new password: ", false)
+		if c.Err != nil {
+			continue
+		}
+		c.Err = ValidatePassword(newPassword)
+		if c.Err != nil {
+			c.SendMessage(ShortPassword, true)
+			continue
+		}
+		encryptedPassword := GetSHA512Encrypted(newPassword)
+		if encryptedPassword == c.User.Password {
+			reason := "New Password is same as current. Please select a different one."
+			GetLogger().Println(reason)
+			c.SendMessage(reason, true)
+			c.Err = errors.New(reason)
+			continue
+		}
+		confirmNewPassword := c.SendAndReceiveMsg("\nConfirm your new password: ", false)
+		if c.Err != nil {
+			continue
+		}
+		if newPassword != confirmNewPassword {
+			reason := "Passwords didn't match"
+			GetLogger().Println(reason)
+			c.SendMessage(reason, true)
+			c.Err = errors.New(reason)
+			continue
+		}
+		c.User.UpdatePassword(encryptedPassword)
+		c.SendMessage("Password successfully updated\n", true)
+		return
+	}
+}
+
+func (c *Client) ChangeName() {
+
+}
+
 func (c *Client) ExitClient() {
 	c.SendMessage(ExitingMsg, true)
 	if c.Err != nil {
 		reason := fmt.Sprintf("sending exit msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 		GetLogger().Println(reason)
 	}
+}
+
+func ValidatePassword(password string) (err error) {
+	if len(password) < 6 {
+		reason := fmt.Sprintf("%s password: %s", ShortPassword, password)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	}
+	return
 }

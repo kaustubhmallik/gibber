@@ -76,6 +76,9 @@ func (user *User) AuthenticateUser(password string) (err error) {
 		err = errors.New(reason) // TODO: May be we can create a new collection just to store credential and other auth related data
 		return
 	}
+	user.Password = fetchDBUser.Password
+	user.FirstName = fetchDBUser.FirstName
+	user.LastName = fetchDBUser.LastName
 	return
 }
 
@@ -91,6 +94,29 @@ func (user *User) ExistingUser() (exists bool) {
 		return
 	}
 	exists = true
+	return
+}
+
+func (user *User) UpdatePassword(newEncryptedPassword string) (err error) {
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String("email", user.Email),
+		),
+		bson.NewDocument(
+			bson.EC.SubDocumentFromElements("$set",
+				bson.EC.String("password", newEncryptedPassword),
+			),
+		),
+	)
+	if err != nil {
+		reason := fmt.Sprintf("password update failed for user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	} else {
+		reason := fmt.Sprintf("password update successful for user %s: %+v", user.Email, result)
+		GetLogger().Println(reason)
+	}
 	return
 }
 
