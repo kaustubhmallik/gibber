@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/mongodb/mongo-go-driver/mongo"
 	"github.com/pkg/errors"
+	"strconv"
 )
 
 // a client using the gibber app
@@ -16,14 +17,14 @@ type Client struct {
 const (
 	WelcomeMsg               = "Welcome to Gibber. Hope you have a lot to say today."
 	EmailPrompt              = "\nPlease enter your email to continue.\nEmail: "
-	ReenterEmailPrompt       = "\nPlease re-enter your email.\nEmail: "
+	ReenterEmailPrompt       = "Please re-enter your email.\nEmail: "
 	PasswordPrompt           = "\nYou are already a registered user. Please enter password to continue.\nPassword: "
 	ReenterPasswordPrompt    = "\nPlease re-enter your password.\nPassword: "
 	NewUserMsg               = "You are an unregistered user. Please register yourself by providing details.\n"
 	FirstNamePrompt          = "First Name: "
 	LastNamePrompt           = "Last Name: "
-	SuccessfulLogin          = "\nLogged In Successfully"
-	FailedLogin              = "\nLog In Failed"
+	SuccessfulLogin          = "\nLogged In Successfully\n"
+	FailedLogin              = "Log In Failed"
 	SuccessfulRegistration   = "\nRegistered Successfully"
 	FailedRegistration       = "\nRegistration Failed"
 	SetPasswordPrompt        = "New Password: "
@@ -32,13 +33,30 @@ const (
 
 // specific errors
 const (
-	PasswordMismatch = "password mismatch"
-	InvalidEmail     = "invalid email"
-	ServerError      = "server processing error"
-	EmptyInput       = "empty input"
-	ShortPassword    = "password should be at 6 characters long"
-	ReadingError     = "error while receiving data at server"
-	ExitingMsg       = "exiting..."
+	PasswordMismatch = "Password mismatch"
+	InvalidEmail     = "Invalid email"
+	ServerError      = "Server processing error"
+	EmptyInput       = "Empty input\n"
+	ShortPassword    = "Password should be at 6 characters long"
+	ReadingError     = "Error while receiving data at server"
+	ExitingMsg       = "Exiting..."
+	InvalidInput     = "Invalid input\n"
+)
+
+const (
+	DashboardHeader = "********************** Welcome to Gibber ************************\n\nPlease select one of " +
+		"the option from below.\n"
+	UserMenu = "0 - Exit\n1 - Start/Resume Chat\n2 - Add new connection\n3 - See new inviations\n4 - Change password\n" +
+		"5 - Change Name\n\nEnter a choice: "
+)
+
+const (
+	ExitChoice = iota
+	StartChatChoice
+	AddConnChoice
+	SeeInvitationChoice
+	ChangePasswordChoice
+	ChangeNameChoice
 )
 
 const EmptyString = ""
@@ -75,8 +93,8 @@ func (c *Client) PromptForEmail() {
 			c.User.Email = c.SendAndReceiveMsg(ReenterEmailPrompt, false)
 		}
 		if c.Err != nil {
-			c.SendMessage(ReadingError, true)
-			GetLogger().Printf("reading user email from client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+			//c.SendMessage(ReadingError, true)
+			//GetLogger().Printf("reading user email from client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 			continue
 		}
 		if !ValidUserEmail(c.User.Email) { // check for valid email - regex based
@@ -145,6 +163,12 @@ func (c *Client) LoginUser() {
 		c.SendMessage(SuccessfulLogin, true)
 		if c.Err != nil {
 			reason := fmt.Sprintf("successful login msg failed to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+			GetLogger().Println(reason)
+			c.Err = errors.New(reason)
+		}
+		c.SendMessage(DashboardHeader, true)
+		if c.Err != nil {
+			reason := fmt.Sprintf("dashboard header msg failed to send to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 			GetLogger().Println(reason)
 			c.Err = errors.New(reason)
 		}
@@ -254,8 +278,37 @@ func (c *Client) SendAndReceiveMsg(msgToSend string, newline bool) (msgRecvd str
 	return
 }
 
-func (c *Client) ShowConnectedPeople() {
+func (c *Client) UserDashboard() {
+	exit := false
+	var userInput string
+	for !exit {
+		userInput = c.ShowMenu()
+		if c.Err != nil {
+			continue
+		}
+		choice, err := strconv.Atoi(userInput)
+		if err != nil {
+			c.SendMessage(InvalidInput, true)
+			continue
+		}
+		switch choice {
+		case ExitChoice:
+			c.ExitClient()
+			exit = true
+		case StartChatChoice:
+		case AddConnChoice:
+		case SeeInvitationChoice:
+		case ChangePasswordChoice:
+		case ChangeNameChoice:
+		default:
+			c.SendMessage(InvalidInput, true)
+			continue
+		}
+	}
+}
 
+func (c *Client) ShowMenu() string {
+	return c.SendAndReceiveMsg(UserMenu, false)
 }
 
 func (c *Client) ExitClient() {
