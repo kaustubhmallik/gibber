@@ -16,7 +16,9 @@ type Client struct {
 const (
 	WelcomeMsg               = "Welcome to Gibber. Hope you have a lot to say today."
 	EmailPrompt              = "\nPlease enter your email to continue.\nEmail: "
+	ReenterEmailPrompt       = "\nPlease re-enter your email.\nEmail: "
 	PasswordPrompt           = "\nYou are already a registered user. Please enter password to continue.\nPassword: "
+	ReenterPasswordPrompt    = "\nPlease re-enter your password.\nPassword: "
 	NewUserMsg               = "You are an unregistered user. Please register yourself by providing details.\n"
 	FirstNamePrompt          = "First Name: "
 	LastNamePrompt           = "Last Name: "
@@ -35,6 +37,8 @@ const (
 	ServerError      = "server processing error"
 	EmptyInput       = "empty input"
 	ShortPassword    = "password should be at 6 characters long"
+	ReadingError     = "error while receiving data at server"
+	ExitingMsg       = "exiting..."
 )
 
 const EmptyString = ""
@@ -64,21 +68,31 @@ func (c *Client) Authenticate() {
 }
 
 func (c *Client) PromptForEmail() {
-	c.User.Email = c.SendAndReceiveMsg(EmailPrompt, false)
-	if c.Err != nil {
-		GetLogger().Printf("reading user email from client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
-		return
-	}
-	if !ValidUserEmail(c.User.Email) { // check for valid email - regex based
-		GetLogger().Printf("invalid email %s", c.User.Email)
-		c.SendMessage(InvalidEmail, true)
-		if c.Err != nil {
-			GetLogger().Printf("sending invalud email msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
-			return
+	for failureCount := 0; failureCount < 3; failureCount++ {
+		if failureCount == 0 {
+			c.User.Email = c.SendAndReceiveMsg(EmailPrompt, false)
+		} else {
+			c.User.Email = c.SendAndReceiveMsg(ReenterEmailPrompt, false)
 		}
-		c.Err = errors.New(InvalidEmail)
+		if c.Err != nil {
+			c.SendMessage(ReadingError, true)
+			GetLogger().Printf("reading user email from client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+			continue
+		}
+		if !ValidUserEmail(c.User.Email) { // check for valid email - regex based
+			GetLogger().Printf("invalid email %s", c.User.Email)
+			c.SendMessage(InvalidEmail, true)
+			if c.Err != nil {
+				GetLogger().Printf("sending invalud email msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+				return
+			}
+			c.Err = errors.New(InvalidEmail)
+			continue
+		}
+		return // successfully read valid email from user
 	}
-	return
+	c.ExitClient()
+	c.Err = errors.New("reading email failed")
 }
 
 // TODO: Add mongo client, and check from users collections whether the given email exists
@@ -100,35 +114,44 @@ func (c *Client) ExistingUser() (exists bool) {
 
 // TODO: Take user password and check with hashed stored
 func (c *Client) LoginUser() {
-	c.SendMessage(PasswordPrompt, false)
-	if c.Err != nil {
-		c.Err = fmt.Errorf("user password prompt failed: %s", c.Err)
-		return
-	}
-	password := c.ReadMessage()
-	if c.Err != nil {
-		c.Err = fmt.Errorf("reading user password failed: %s", c.Err)
-		return
-	}
-	c.Err = c.User.AuthenticateUser(password)
-	if c.Err != nil {
-		reason := fmt.Sprintf("user %s authentication failed: %s", c.User.Email, c.Err)
-		GetLogger().Println(reason)
-		if c.Err.Error() == PasswordMismatch {
-			c.SendMessage(FailedLogin+": "+PasswordMismatch, true)
+	for failureCount := 0; failureCount < 3; failureCount++ {
+		if failureCount == 0 {
+			c.SendMessage(PasswordPrompt, false)
 		} else {
-			c.SendMessage(FailedLogin+": "+ServerError, true)
+			c.SendMessage(ReenterPasswordPrompt, false)
 		}
-		c.Err = errors.New(reason)
+		if c.Err != nil {
+			c.Err = fmt.Errorf("user password prompt failed: %s", c.Err)
+			continue
+		}
+		password := c.ReadMessage()
+		if c.Err != nil {
+			c.Err = fmt.Errorf("reading user password failed: %s", c.Err)
+			continue
+		}
+		c.Err = c.User.AuthenticateUser(password)
+		if c.Err != nil {
+			reason := fmt.Sprintf("user %s authentication failed: %s", c.User.Email, c.Err)
+			GetLogger().Println(reason)
+			if c.Err.Error() == PasswordMismatch {
+				c.SendMessage(FailedLogin+": "+PasswordMismatch, true)
+			} else {
+				c.SendMessage(FailedLogin+": "+ServerError, true)
+			}
+			c.Err = errors.New(reason)
+			continue
+		}
+		GetLogger().Printf("user %s successfully logged in", c.User.Email)
+		c.SendMessage(SuccessfulLogin, true)
+		if c.Err != nil {
+			reason := fmt.Sprintf("successful login msg failed to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+			GetLogger().Println(reason)
+			c.Err = errors.New(reason)
+		}
 		return
 	}
-	GetLogger().Printf("user %s successfully logged in", c.User.Email)
-	c.SendMessage(SuccessfulLogin, true)
-	if c.Err != nil {
-		reason := fmt.Sprintf("successful login msg failed to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
-		GetLogger().Println(reason)
-		c.Err = errors.New(reason)
-	}
+	c.ExitClient()
+	c.Err = errors.New("reading password failed")
 }
 
 // TODO: register user name and age
@@ -233,4 +256,12 @@ func (c *Client) SendAndReceiveMsg(msgToSend string, newline bool) (msgRecvd str
 
 func (c *Client) ShowConnectedPeople() {
 
+}
+
+func (c *Client) ExitClient() {
+	c.SendMessage(ExitingMsg, true)
+	if c.Err != nil {
+		reason := fmt.Sprintf("sending exit msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+		GetLogger().Println(reason)
+	}
 }
