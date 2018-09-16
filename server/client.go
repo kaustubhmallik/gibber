@@ -47,7 +47,7 @@ const (
 	DashboardHeader = "********************** Welcome to Gibber ************************\n\nPlease select one of " +
 		"the option from below.\n"
 	UserMenu = "\n0 - Exit\n1 - Start/Resume Chat\n2 - Add new connection\n3 - See new inviations\n4 - Change password\n" +
-		"5 - Change Name\n\nEnter a choice: "
+		"5 - Change Name\n6. See your profile\n\nEnter a choice: "
 )
 
 const (
@@ -57,6 +57,7 @@ const (
 	SeeInvitationChoice
 	ChangePasswordChoice
 	ChangeNameChoice
+	SeeProfileChoice
 )
 
 const EmptyString = ""
@@ -88,17 +89,17 @@ func (c *Client) Authenticate() {
 func (c *Client) PromptForEmail() {
 	for failureCount := 0; failureCount < 3; failureCount++ {
 		if failureCount == 0 {
-			c.User.Email = c.SendAndReceiveMsg(EmailPrompt, false)
+			c.Email = c.SendAndReceiveMsg(EmailPrompt, false)
 		} else {
-			c.User.Email = c.SendAndReceiveMsg(ReenterEmailPrompt, false)
+			c.Email = c.SendAndReceiveMsg(ReenterEmailPrompt, false)
 		}
 		if c.Err != nil {
 			//c.SendMessage(ReadingError, true)
 			//GetLogger().Printf("reading user email from client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 			continue
 		}
-		if !ValidUserEmail(c.User.Email) { // check for valid email - regex based
-			GetLogger().Printf("invalid email %s", c.User.Email)
+		if !ValidUserEmail(c.Email) { // check for valid email - regex based
+			GetLogger().Printf("invalid email %s", c.Email)
 			c.SendMessage(InvalidEmail, true)
 			if c.Err != nil {
 				GetLogger().Printf("sending invalud email msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
@@ -115,7 +116,7 @@ func (c *Client) PromptForEmail() {
 
 // TODO: Add mongo client, and check from users collections whether the given email exists
 func (c *Client) ExistingUser() (exists bool) {
-	_, c.Err = GetUser(c.User.Email) // if user not exists, it will throw an error
+	_, c.Err = GetUser(c.Email) // if user not exists, it will throw an error
 	if c.Err == mongo.ErrNoDocuments {
 		c.Err = nil // resetting the error
 		return
@@ -149,7 +150,7 @@ func (c *Client) LoginUser() {
 		}
 		c.Err = c.User.AuthenticateUser(password)
 		if c.Err != nil {
-			reason := fmt.Sprintf("user %s authentication failed: %s", c.User.Email, c.Err)
+			reason := fmt.Sprintf("user %s authentication failed: %s", c.Email, c.Err)
 			GetLogger().Println(reason)
 			if c.Err.Error() == PasswordMismatch {
 				c.SendMessage(FailedLogin+": "+PasswordMismatch, true)
@@ -159,7 +160,7 @@ func (c *Client) LoginUser() {
 			c.Err = errors.New(reason)
 			continue
 		}
-		GetLogger().Printf("user %s successfully logged in", c.User.Email)
+		GetLogger().Printf("user %s successfully logged in", c.Email)
 		c.SendMessage(SuccessfulLogin, true)
 		if c.Err != nil {
 			reason := fmt.Sprintf("successful login msg failed to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
@@ -195,7 +196,7 @@ func (c *Client) RegisterUser() {
 		c.Err = errors.New(reason)
 		return
 	}
-	c.User.FirstName = firstName
+	c.FirstName = firstName
 
 	lastName := c.SendAndReceiveMsg(LastNamePrompt, false)
 	if c.Err != nil {
@@ -204,7 +205,7 @@ func (c *Client) RegisterUser() {
 		c.Err = errors.New(reason)
 		return
 	}
-	c.User.LastName = lastName
+	c.LastName = lastName
 
 	password := c.SendAndReceiveMsg(SetPasswordPrompt, false)
 	if c.Err != nil {
@@ -231,11 +232,11 @@ func (c *Client) RegisterUser() {
 		c.Err = errors.New(reason)
 		return
 	}
-	c.User.Password = password
+	c.Password = password
 
 	_, c.Err = CreateUser(c.User)
 	if c.Err != nil {
-		reason := fmt.Sprintf("user %s registration failed: %s", c.User.Email, c.Err)
+		reason := fmt.Sprintf("user %s registration failed: %s", c.Email, c.Err)
 		GetLogger().Println(reason)
 		c.SendMessage(FailedRegistration, true)
 		c.Err = errors.New(reason)
@@ -303,6 +304,8 @@ func (c *Client) UserDashboard() {
 			c.ChangePassword()
 		case ChangeNameChoice:
 			c.ChangeName()
+		case SeeProfileChoice:
+			c.ChangeName()
 		default:
 			c.SendMessage(InvalidInput, true)
 			continue
@@ -333,8 +336,8 @@ func (c *Client) ChangePassword() {
 		if c.Err != nil {
 			continue
 		}
-		if GetSHA512Encrypted(currPassword) != c.User.Password {
-			reason := fmt.Sprintf("user %s entered incorrect password: %s", c.User.Email, c.Err)
+		if GetSHA512Encrypted(currPassword) != c.Password {
+			reason := fmt.Sprintf("user %s entered incorrect password: %s", c.Email, c.Err)
 			GetLogger().Println(reason)
 			if c.Err.Error() == PasswordMismatch {
 				c.SendMessage(PasswordMismatch, true)
@@ -360,7 +363,7 @@ func (c *Client) ChangePassword() {
 			continue
 		}
 		encryptedPassword := GetSHA512Encrypted(newPassword)
-		if encryptedPassword == c.User.Password {
+		if encryptedPassword == c.Password {
 			reason := "New Password is same as current. Please select a different one."
 			GetLogger().Println(reason)
 			c.SendMessage(reason, true)
@@ -378,14 +381,47 @@ func (c *Client) ChangePassword() {
 			c.Err = errors.New(reason)
 			continue
 		}
-		c.User.UpdatePassword(encryptedPassword)
+		err := c.User.UpdatePassword(encryptedPassword)
+		if err != nil {
+			c.Err = err
+			c.SendMessage("Password update failed. Please try again.\n", true)
+			return
+		}
 		c.SendMessage("Password successfully updated\n", true)
 		return
 	}
 }
 
 func (c *Client) ChangeName() {
+	newFirstName := c.SendAndReceiveMsg("\nEnter your new first name(enter blank for skip): ", false)
+	if c.Err != nil {
+		//continue
+		// add retry
+	}
+	if newFirstName == "" {
+		reason := fmt.Sprintf("skipping first name change for user %s", c.Email)
+		GetLogger().Println(reason)
+	}
 
+	newLastName := c.SendAndReceiveMsg("\nEnter your new last name(enter blank for skip): ", false)
+	if c.Err != nil {
+		//continue
+		// add retry
+	}
+	if newLastName == "" {
+		reason := fmt.Sprintf("skipping first name change for user %s", c.Email)
+		GetLogger().Println(reason)
+	}
+
+	err := c.User.UpdateName(newFirstName, newLastName)
+	if err != nil {
+		c.Err = err
+		c.SendMessage("Name update failed. Please try again.\n", true)
+		return
+	}
+
+	c.SendMessage("Name successfully updated\n", true)
+	return
 }
 
 func (c *Client) ExitClient() {
@@ -394,6 +430,10 @@ func (c *Client) ExitClient() {
 		reason := fmt.Sprintf("sending exit msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 		GetLogger().Println(reason)
 	}
+}
+
+func (c *Client) SeeProfile() {
+	
 }
 
 func ValidatePassword(password string) (err error) {
