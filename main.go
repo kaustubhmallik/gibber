@@ -1,8 +1,6 @@
 package main
 
-import (
-	"gibber/server"
-)
+import "gibber/server"
 
 func main() {
 	server.StartServer()

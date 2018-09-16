@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/mongodb/mongo-go-driver/mongo"
 	"github.com/pkg/errors"
+	"strconv"
 )
 
 // a client using the gibber app
@@ -16,12 +17,14 @@ type Client struct {
 const (
 	WelcomeMsg               = "Welcome to Gibber. Hope you have a lot to say today."
 	EmailPrompt              = "\nPlease enter your email to continue.\nEmail: "
+	ReenterEmailPrompt       = "Please re-enter your email.\nEmail: "
 	PasswordPrompt           = "\nYou are already a registered user. Please enter password to continue.\nPassword: "
+	ReenterPasswordPrompt    = "\nPlease re-enter your password.\nPassword: "
 	NewUserMsg               = "You are an unregistered user. Please register yourself by providing details.\n"
 	FirstNamePrompt          = "First Name: "
 	LastNamePrompt           = "Last Name: "
-	SuccessfulLogin          = "\nLogged In Successfully"
-	FailedLogin              = "\nLog In Failed"
+	SuccessfulLogin          = "\nLogged In Successfully\n"
+	FailedLogin              = "Log In Failed"
 	SuccessfulRegistration   = "\nRegistered Successfully"
 	FailedRegistration       = "\nRegistration Failed"
 	SetPasswordPrompt        = "New Password: "
@@ -30,11 +33,31 @@ const (
 
 // specific errors
 const (
-	PasswordMismatch = "password mismatch"
-	InvalidEmail     = "invalid email"
-	ServerError      = "server processing error"
-	EmptyInput       = "empty input"
-	ShortPassword    = "password should be at 6 characters long"
+	PasswordMismatch = "Incorrect password"
+	InvalidEmail     = "Invalid email"
+	ServerError      = "Server processing error"
+	EmptyInput       = "Empty input\n"
+	ShortPassword    = "Password should be at 6 characters long"
+	ReadingError     = "Error while receiving data at server"
+	ExitingMsg       = "Exiting..."
+	InvalidInput     = "Invalid input\n"
+)
+
+const (
+	DashboardHeader = "********************** Welcome to Gibber ************************\n\nPlease select one of " +
+		"the option from below.\n"
+	UserMenu = "\n0 - Exit\n1 - Start/Resume Chat\n2 - Add new connection\n3 - See new inviations\n4 - Change password\n" +
+		"5 - Change Name\n6. See your profile\n\nEnter a choice: "
+)
+
+const (
+	ExitChoice = iota
+	StartChatChoice
+	SendInvitationChoice
+	SeeInvitationChoice
+	ChangePasswordChoice
+	ChangeNameChoice
+	SeeProfileChoice
 )
 
 const EmptyString = ""
@@ -64,26 +87,36 @@ func (c *Client) Authenticate() {
 }
 
 func (c *Client) PromptForEmail() {
-	c.User.Email = c.SendAndReceiveMsg(EmailPrompt, false)
-	if c.Err != nil {
-		GetLogger().Printf("reading user email from client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
-		return
-	}
-	if !ValidUserEmail(c.User.Email) { // check for valid email - regex based
-		GetLogger().Printf("invalid email %s", c.User.Email)
-		c.SendMessage(InvalidEmail, true)
-		if c.Err != nil {
-			GetLogger().Printf("sending invalud email msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
-			return
+	for failureCount := 0; failureCount < 3; failureCount++ {
+		if failureCount == 0 {
+			c.Email = c.SendAndReceiveMsg(EmailPrompt, false)
+		} else {
+			c.Email = c.SendAndReceiveMsg(ReenterEmailPrompt, false)
 		}
-		c.Err = errors.New(InvalidEmail)
+		if c.Err != nil {
+			//c.SendMessage(ReadingError, true)
+			//GetLogger().Printf("reading user email from client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+			continue
+		}
+		if !ValidUserEmail(c.Email) { // check for valid email - regex based
+			GetLogger().Printf("invalid email %s", c.Email)
+			c.SendMessage(InvalidEmail, true)
+			if c.Err != nil {
+				GetLogger().Printf("sending invalud email msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+				return
+			}
+			c.Err = errors.New(InvalidEmail)
+			continue
+		}
+		return // successfully read valid email from user
 	}
-	return
+	c.ExitClient()
+	c.Err = errors.New("reading email failed")
 }
 
 // TODO: Add mongo client, and check from users collections whether the given email exists
 func (c *Client) ExistingUser() (exists bool) {
-	_, c.Err = GetUser(c.User.Email) // if user not exists, it will throw an error
+	_, c.Err = GetUser(c.Email) // if user not exists, it will throw an error
 	if c.Err == mongo.ErrNoDocuments {
 		c.Err = nil // resetting the error
 		return
@@ -100,35 +133,50 @@ func (c *Client) ExistingUser() (exists bool) {
 
 // TODO: Take user password and check with hashed stored
 func (c *Client) LoginUser() {
-	c.SendMessage(PasswordPrompt, false)
-	if c.Err != nil {
-		c.Err = fmt.Errorf("user password prompt failed: %s", c.Err)
-		return
-	}
-	password := c.ReadMessage()
-	if c.Err != nil {
-		c.Err = fmt.Errorf("reading user password failed: %s", c.Err)
-		return
-	}
-	c.Err = c.User.AuthenticateUser(password)
-	if c.Err != nil {
-		reason := fmt.Sprintf("user %s authentication failed: %s", c.User.Email, c.Err)
-		GetLogger().Println(reason)
-		if c.Err.Error() == PasswordMismatch {
-			c.SendMessage(FailedLogin+": "+PasswordMismatch, true)
+	for failureCount := 0; failureCount < 3; failureCount++ {
+		if failureCount == 0 {
+			c.SendMessage(PasswordPrompt, false)
 		} else {
-			c.SendMessage(FailedLogin+": "+ServerError, true)
+			c.SendMessage(ReenterPasswordPrompt, false)
 		}
-		c.Err = errors.New(reason)
+		if c.Err != nil {
+			c.Err = fmt.Errorf("user password prompt failed: %s", c.Err)
+			continue
+		}
+		password := c.ReadMessage()
+		if c.Err != nil {
+			c.Err = fmt.Errorf("reading user password failed: %s", c.Err)
+			continue
+		}
+		c.Err = c.User.AuthenticateUser(password)
+		if c.Err != nil {
+			reason := fmt.Sprintf("user %s authentication failed: %s", c.Email, c.Err)
+			GetLogger().Println(reason)
+			if c.Err.Error() == PasswordMismatch {
+				c.SendMessage(FailedLogin+": "+PasswordMismatch, true)
+			} else {
+				c.SendMessage(FailedLogin+": "+ServerError, true)
+			}
+			c.Err = errors.New(reason)
+			continue
+		}
+		GetLogger().Printf("user %s successfully logged in", c.Email)
+		c.SendMessage(SuccessfulLogin, true)
+		if c.Err != nil {
+			reason := fmt.Sprintf("successful login msg failed to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+			GetLogger().Println(reason)
+			c.Err = errors.New(reason)
+		}
+		c.SendMessage(DashboardHeader, true)
+		if c.Err != nil {
+			reason := fmt.Sprintf("dashboard header msg failed to send to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+			GetLogger().Println(reason)
+			c.Err = errors.New(reason)
+		}
 		return
 	}
-	GetLogger().Printf("user %s successfully logged in", c.User.Email)
-	c.SendMessage(SuccessfulLogin, true)
-	if c.Err != nil {
-		reason := fmt.Sprintf("successful login msg failed to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
-		GetLogger().Println(reason)
-		c.Err = errors.New(reason)
-	}
+	c.ExitClient()
+	c.Err = errors.New("reading password failed")
 }
 
 // TODO: register user name and age
@@ -148,7 +196,7 @@ func (c *Client) RegisterUser() {
 		c.Err = errors.New(reason)
 		return
 	}
-	c.User.FirstName = firstName
+	c.FirstName = firstName
 
 	lastName := c.SendAndReceiveMsg(LastNamePrompt, false)
 	if c.Err != nil {
@@ -157,7 +205,7 @@ func (c *Client) RegisterUser() {
 		c.Err = errors.New(reason)
 		return
 	}
-	c.User.LastName = lastName
+	c.LastName = lastName
 
 	password := c.SendAndReceiveMsg(SetPasswordPrompt, false)
 	if c.Err != nil {
@@ -166,11 +214,9 @@ func (c *Client) RegisterUser() {
 		c.Err = errors.New(reason)
 		return
 	}
-	if len(password) < 6 {
-		reason := fmt.Sprintf("%s password: %s", ShortPassword, password)
-		GetLogger().Println(reason)
+	c.Err = ValidatePassword(password)
+	if c.Err != nil {
 		c.SendMessage(ShortPassword, true)
-		c.Err = errors.New(reason)
 		return
 	}
 
@@ -186,11 +232,11 @@ func (c *Client) RegisterUser() {
 		c.Err = errors.New(reason)
 		return
 	}
-	c.User.Password = password
+	c.Password = password
 
 	_, c.Err = CreateUser(c.User)
 	if c.Err != nil {
-		reason := fmt.Sprintf("user %s registration failed: %s", c.User.Email, c.Err)
+		reason := fmt.Sprintf("user %s registration failed: %s", c.Email, c.Err)
 		GetLogger().Println(reason)
 		c.SendMessage(FailedRegistration, true)
 		c.Err = errors.New(reason)
@@ -231,6 +277,170 @@ func (c *Client) SendAndReceiveMsg(msgToSend string, newline bool) (msgRecvd str
 	return
 }
 
-func (c *Client) ShowConnectedPeople() {
+func (c *Client) UserDashboard() {
+	exit := false
+	var userInput string
+	for !exit {
+		userInput = c.ShowMenu()
+		if c.Err != nil {
+			continue
+		}
+		choice, err := strconv.Atoi(userInput)
+		if err != nil {
+			c.SendMessage(InvalidInput, true)
+			continue
+		}
+		switch choice {
+		case ExitChoice:
+			c.ExitClient()
+			exit = true
+		case StartChatChoice:
+			c.StarChat()
+		case SendInvitationChoice:
+			c.SendInvitation()
+		case SeeInvitationChoice:
+			c.SeeInvitation()
+		case ChangePasswordChoice:
+			c.ChangePassword()
+		case ChangeNameChoice:
+			c.ChangeName()
+		case SeeProfileChoice:
+			c.ChangeName()
+		default:
+			c.SendMessage(InvalidInput, true)
+			continue
+		}
+	}
+}
 
+func (c *Client) ShowMenu() string {
+	return c.SendAndReceiveMsg(UserMenu, false)
+}
+
+func (c *Client) StarChat() {
+
+}
+
+func (c *Client) SendInvitation() {
+
+}
+
+func (c *Client) SeeInvitation() {
+
+}
+
+func (c *Client) ChangePassword() {
+	var failureCount int
+	for failureCount = 0; failureCount < 3; failureCount++ {
+		currPassword := c.SendAndReceiveMsg("\nEnter your current password: ", false)
+		if c.Err != nil {
+			continue
+		}
+		if GetSHA512Encrypted(currPassword) != c.Password {
+			reason := fmt.Sprintf("user %s entered incorrect password: %s", c.Email, c.Err)
+			GetLogger().Println(reason)
+			if c.Err.Error() == PasswordMismatch {
+				c.SendMessage(PasswordMismatch, true)
+			} else {
+				c.SendMessage(ServerError, true)
+			}
+			c.Err = errors.New(reason)
+			continue
+		}
+		break
+	}
+	if failureCount == 3 {
+		return // user unable to enter current password
+	}
+	for failureCount = 0; failureCount < 3; failureCount++ {
+		newPassword := c.SendAndReceiveMsg("\nEnter your new password: ", false)
+		if c.Err != nil {
+			continue
+		}
+		c.Err = ValidatePassword(newPassword)
+		if c.Err != nil {
+			c.SendMessage(ShortPassword, true)
+			continue
+		}
+		encryptedPassword := GetSHA512Encrypted(newPassword)
+		if encryptedPassword == c.Password {
+			reason := "New Password is same as current. Please select a different one."
+			GetLogger().Println(reason)
+			c.SendMessage(reason, true)
+			c.Err = errors.New(reason)
+			continue
+		}
+		confirmNewPassword := c.SendAndReceiveMsg("\nConfirm your new password: ", false)
+		if c.Err != nil {
+			continue
+		}
+		if newPassword != confirmNewPassword {
+			reason := "Passwords didn't match"
+			GetLogger().Println(reason)
+			c.SendMessage(reason, true)
+			c.Err = errors.New(reason)
+			continue
+		}
+		err := c.User.UpdatePassword(encryptedPassword)
+		if err != nil {
+			c.Err = err
+			c.SendMessage("Password update failed. Please try again.\n", true)
+			return
+		}
+		c.SendMessage("Password successfully updated\n", true)
+		return
+	}
+}
+
+func (c *Client) ChangeName() {
+	newFirstName := c.SendAndReceiveMsg("\nEnter your new first name(enter blank for skip): ", false)
+	if c.Err != nil {
+		//continue
+		// add retry
+	}
+	if newFirstName == "" {
+		reason := fmt.Sprintf("skipping first name change for user %s", c.Email)
+		GetLogger().Println(reason)
+	}
+
+	newLastName := c.SendAndReceiveMsg("\nEnter your new last name(enter blank for skip): ", false)
+	if c.Err != nil {
+		//continue
+		// add retry
+	}
+	if newLastName == "" {
+		reason := fmt.Sprintf("skipping first name change for user %s", c.Email)
+		GetLogger().Println(reason)
+	}
+
+	err := c.User.UpdateName(newFirstName, newLastName)
+	if err != nil {
+		c.Err = err
+		c.SendMessage("Name update failed. Please try again.\n", true)
+		return
+	}
+
+	c.SendMessage("Name successfully updated\n", true)
+	return
+}
+
+func (c *Client) ExitClient() {
+	c.SendMessage(ExitingMsg, true)
+	if c.Err != nil {
+		reason := fmt.Sprintf("sending exit msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+		GetLogger().Println(reason)
+	}
+}
+
+func (c *Client) SeeProfile() {
+	
+}
+
+func ValidatePassword(password string) (err error) {
+	if len(password) < 6 {
+		reason := fmt.Sprintf("%s password: %s", ShortPassword, password)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	}
+	return
 }

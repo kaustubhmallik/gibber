@@ -10,10 +10,11 @@ import (
 	"regexp"
 )
 
-const UserCollection = "users"
-const UserEmailField = "email"
-
-const ValidEmailRegex = `^[\w\.=-]+@[\w\.-]+\.[\w]{2,3}$`
+const (
+	UserCollection  = "users"
+	UserEmailField  = "email"
+	ValidEmailRegex = `^[\w\.=-]+@[\w\.-]+\.[\w]{2,3}$`
+)
 
 // User details
 type User struct {
@@ -76,6 +77,9 @@ func (user *User) AuthenticateUser(password string) (err error) {
 		err = errors.New(reason) // TODO: May be we can create a new collection just to store credential and other auth related data
 		return
 	}
+	user.Password = fetchDBUser.Password
+	user.FirstName = fetchDBUser.FirstName
+	user.LastName = fetchDBUser.LastName
 	return
 }
 
@@ -91,6 +95,74 @@ func (user *User) ExistingUser() (exists bool) {
 		return
 	}
 	exists = true
+	return
+}
+
+func (user *User) UpdatePassword(newEncryptedPassword string) (err error) {
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String("email", user.Email),
+		),
+		bson.NewDocument(
+			bson.EC.SubDocumentFromElements("$set",
+				bson.EC.String("password", newEncryptedPassword),
+			),
+		),
+	)
+	if err != nil {
+		reason := fmt.Sprintf("password update failed for user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	} else {
+		reason := fmt.Sprintf("password update successful for user %s: %+v", user.Email, result)
+		GetLogger().Println(reason)
+	}
+	return
+}
+
+func (user *User) UpdateName(firstName, lastName string) (err error) {
+	var updatedDoc *bson.Document
+	if firstName != "" && lastName != "" {
+		updatedDoc = bson.NewDocument(
+			bson.EC.SubDocumentFromElements("$set",
+				bson.EC.String("firstname", firstName),
+				bson.EC.String("lastname", lastName),
+			),
+		)
+	} else if firstName != "" {
+		updatedDoc = bson.NewDocument(
+			bson.EC.SubDocumentFromElements("$set",
+				bson.EC.String("firstname", firstName),
+			),
+		)
+	} else if lastName != "" {
+		updatedDoc = bson.NewDocument(
+			bson.EC.SubDocumentFromElements("$set",
+				bson.EC.String("lastname", lastName),
+			),
+		)
+	} else { // nothing to update
+		reason := "nothing to update as both firstName and lastName are blank"
+		GetLogger().Println(reason)
+		return
+	}
+	currentDocFilter := bson.NewDocument(
+		bson.EC.String("email", user.Email),
+	)
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		currentDocFilter,
+		updatedDoc,
+	)
+	if err != nil {
+		reason := fmt.Sprintf("name update failed for user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	} else {
+		reason := fmt.Sprintf("name update successful for user %s: %+v", user.Email, result)
+		GetLogger().Println(reason)
+	}
 	return
 }
 

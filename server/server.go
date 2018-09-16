@@ -55,7 +55,7 @@ func establishClientConnection(conn *net.Conn) {
 		return
 	}
 
-	client.ShowConnectedPeople()
+	client.UserDashboard()
 }
 
 func closeClientConnection(conn *net.Conn) {
