@@ -29,6 +29,8 @@ const (
 	FailedRegistration       = "\nRegistration Failed"
 	SetPasswordPrompt        = "New Password: "
 	ConfirmSetPasswordPrompt = "Confirm Password: "
+	SendInvitationInfo       = "You can search other people uniquely by their email.\"
+	EmailSearchPrompt        = "Email(\"q\" to quit): "
 )
 
 // specific errors
@@ -43,11 +45,14 @@ const (
 	InvalidInput     = "Invalid input\n"
 )
 
+// user menus
 const (
 	DashboardHeader = "********************** Welcome to Gibber ************************\n\nPlease select one of " +
 		"the option from below.\n"
 	UserMenu = "\n0 - Exit\n1 - Start/Resume Chat\n2 - Add new connection\n3 - See new inviations\n4 - Change password\n" +
 		"5 - Change Name\n6. See your profile\n\nEnter a choice: "
+	InvitationMenu = "0 - Go back to previous menu\n1 - Active Sent Invites\n2 - Active Received Invites\n" +
+		"3 - Inactive Sent Invites\n4 - Inactive Received Invites\n\nEnter a choice: "
 )
 
 const (
@@ -58,6 +63,13 @@ const (
 	ChangePasswordChoice
 	ChangeNameChoice
 	SeeProfileChoice
+)
+
+const (
+	ActiveSentInvitesChoice = 1 + iota
+	ActiveReceivedInvitesChoice
+	InactiveSentInvitesChoice
+	InactiveReceivedInvitesChoice
 )
 
 const EmptyString = ""
@@ -281,7 +293,7 @@ func (c *Client) UserDashboard() {
 	exit := false
 	var userInput string
 	for !exit {
-		userInput = c.ShowMenu()
+		userInput = c.ShowLandingPage()
 		if c.Err != nil {
 			continue
 		}
@@ -313,7 +325,7 @@ func (c *Client) UserDashboard() {
 	}
 }
 
-func (c *Client) ShowMenu() string {
+func (c *Client) ShowLandingPage() string {
 	return c.SendAndReceiveMsg(UserMenu, false)
 }
 
@@ -322,10 +334,89 @@ func (c *Client) StarChat() {
 }
 
 func (c *Client) SendInvitation() {
+	c.SendMessage(SendInvitationInfo, true)
+	if c.Err != nil {
 
+	}
+	for {
+		email := c.SendAndReceiveMsg(EmailSearchPrompt, false)
+		if c.Err != nil {
+			continue
+		}
+		if email == "q" {
+			break
+		}
+		user, err := c.SeePublicProfile(email)
+		if err == mongo.ErrNoDocuments { // user not found
+			continue
+		}
+		c.SendMessage(fmt.Sprintf("Send invite to %s", email), false)
+		confirm := c.SendAndReceiveMsg("Confirm? (Y/n): ", false)
+		if c.Err != nil {
+		}
+		if confirm == "Y" || confirm == "y" || confirm == "" {
+			err = user.SendInvitation(c.User)
+		}
+	}
 }
 
 func (c *Client) SeeInvitation() {
+	for {
+		userInput := c.SendAndReceiveMsg(InvitationMenu, false)
+		if c.Err != nil {
+			continue
+		}
+		choice, err := strconv.Atoi(userInput)
+		if err != nil {
+			c.SendMessage(InvalidInput, true)
+			continue
+		}
+		if c.Err != nil {
+
+		}
+		switch choice {
+		case ExitChoice:
+			return
+		case ActiveSentInvitesChoice:
+			c.SeeActiveSentInvitations()
+		case ActiveReceivedInvitesChoice:
+			c.SeeActiveReceivedInvitations()
+		case InactiveSentInvitesChoice:
+			c.SeeInactiveSentInvitations()
+		case InactiveReceivedInvitesChoice:
+			c.SeeInactiveReceivedInvitations()
+		default:
+			c.SendMessage(InvalidInput, true)
+			continue
+		}
+	}
+
+}
+
+func (c *Client) SeeActiveReceivedInvitations() {
+	invites, err := c.User.FetchActiveReceivedInvitations()
+	if err != nil {
+		reason := fmt.Sprintf("error while fetching active received invitations for user %s: %s", c.Email, err)
+		GetLogger().Println(reason)
+		c.Err = errors.New(reason)
+		return
+	}
+	c.SendMessage("\n**** Active Received Invitations ****\n", true)
+	for idx, invite := range invites {
+		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, invite), true)
+	}
+	c.SendAndReceiveMsg()
+}
+
+func (c *Client) SeeActiveSentInvitations() {
+
+}
+
+func (c *Client) SeeInactiveReceivedInvitations() {
+
+}
+
+func (c *Client) SeeInactiveSentInvitations() {
 
 }
 
@@ -432,8 +523,25 @@ func (c *Client) ExitClient() {
 	}
 }
 
-func (c *Client) SeeProfile() {
-	
+// enable client to see his/her own profile in detail
+func (c *Client) SeeSelfProfile() {
+
+}
+
+// allow a client to see other person's basic detail before sending invitation
+func (c *Client) SeePublicProfile(email string) (user *User, err error) {
+	user, err = GetUser(email)
+	if err == mongo.ErrNoDocuments {
+		c.SendMessage(fmt.Sprintf("No user found with given email %s", email), true)
+		if c.Err != nil {
+			reason := fmt.Sprintf("error while sending no user found msg: %s", c.Err)
+			GetLogger().Println(reason)
+			return
+		}
+	}
+	c.SendMessage(fmt.Sprintf("User found => First Name: %s, LastName: %s, Email: %s", user.FirstName, user.LastName,
+		user.Email), true)
+	return
 }
 
 func ValidatePassword(password string) (err error) {

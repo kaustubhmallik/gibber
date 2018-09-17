@@ -10,6 +10,14 @@ import (
 
 const ConnScheme = "mongodb"
 
+// mongodb query operators
+const (
+	MongoSetOperator      = "$set"
+	MongoPushOperator      = "$set"
+	MongoAddToSetOperator = "$addToSet"
+)
+
+
 var MongoHost = os.Getenv("GIBBER_MONGO_HOST")
 var MongoPort = os.Getenv("GIBBER_MONGO_PORT")
 var MongoUser = os.Getenv("GIBBER_MONGO_USER")
