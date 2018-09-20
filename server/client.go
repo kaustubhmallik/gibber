@@ -49,8 +49,8 @@ const (
 const (
 	DashboardHeader = "********************** Welcome to Gibber ************************\n\nPlease select one of " +
 		"the option from below.\n"
-	UserMenu = "\n0 - Exit\n1 - Start/Resume Chat\n2 - Add new connection\n3 - See new inviations\n4 - Change password\n" +
-		"5 - Change Name\n6. See your profile\n\nEnter a choice: "
+	UserMenu = "\n0 - Exit\n1 - Start/Resume Chat\n2 - See All Friends\n3 - Add new connection\n4 - See new inviations\n5 - Change password\n" +
+		"6 - Change Name\n7. See your profile\n\nEnter a choice: "
 	InvitationMenu = "0 - Go back to previous menu\n1 - Active Sent Invites\n2 - Active Received Invites\n" +
 		"3 - Inactive Sent Invites\n4 - Inactive Received Invites\n\nEnter a choice: "
 )
@@ -58,6 +58,7 @@ const (
 const (
 	ExitChoice = iota
 	StartChatChoice
+	SeeAllFriends
 	SendInvitationChoice
 	SeeInvitationChoice
 	ChangePasswordChoice
@@ -307,7 +308,9 @@ func (c *Client) UserDashboard() {
 			c.ExitClient()
 			exit = true
 		case StartChatChoice:
-			c.StarChat()
+			c.SeeOnlineFriends()
+		case SeeAllFriends:
+			c.SeeFriends()
 		case SendInvitationChoice:
 			c.SendInvitation()
 		case SeeInvitationChoice:
@@ -329,7 +332,7 @@ func (c *Client) ShowLandingPage() string {
 	return c.SendAndReceiveMsg(UserMenu, false)
 }
 
-func (c *Client) StarChat() {
+func (c *Client) StarChat(friendsDetail string) {
 
 }
 
@@ -371,9 +374,6 @@ func (c *Client) SeeInvitation() {
 			c.SendMessage(InvalidInput, true)
 			continue
 		}
-		if c.Err != nil {
-
-		}
 		switch choice {
 		case ExitChoice:
 			return
@@ -405,7 +405,43 @@ func (c *Client) SeeActiveReceivedInvitations() {
 	for idx, invite := range invites {
 		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, invite), true)
 	}
-	c.SendAndReceiveMsg()
+	userInput := c.SendAndReceiveMsg("Choose one to accept or reject(\"b to go back\"): ", false)
+	if c.Err != nil {
+		reason := fmt.Sprintf("error while receiving user invitation input from client %s: %s", (*c.Conn).RemoteAddr(), err)
+		GetLogger().Println(reason)
+		c.Err = errors.New(reason)
+		return
+	}
+	if userInput == "b" || userInput == "B" {
+		return
+	}
+	invitationIdx, err := strconv.Atoi(userInput)
+	if err != nil || invitationIdx < 0 || invitationIdx > len(invites) {
+		reason := fmt.Sprintf("invitation index input %s parsing failed from client %s: %s", userInput,
+			(*c.Conn).RemoteAddr(), userInput)
+		GetLogger().Println(reason)
+		c.Err = errors.New(reason)
+		c.SendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
+		return
+	}
+	inviteeUser, err := GetUser(invites[invitationIdx]) // user who sent this invitation
+	if err != nil {
+		reason := fmt.Sprintf("fetching invitee user %s details failed from client %s: %s", invites[invitationIdx],
+			(*c.Conn).RemoteAddr(), userInput)
+		GetLogger().Println(reason)
+		c.Err = errors.New(reason)
+		c.SendMessage("Internal error. Try again", true)
+		c.SeeActiveReceivedInvitations()
+	}
+	c.SendMessage("===== Invitation Details =====", true)
+	c.SendMessage(fmt.Sprintf("Name: %s %s", inviteeUser.FirstName, inviteeUser.LastName), true)
+	c.SendMessage(fmt.Sprintf("Email: %s", inviteeUser.Email), true)
+	confirm := c.SendAndReceiveMsg("Confirm(Y/n): ", false)
+	if c.Err != nil {
+	}
+	if confirm == "Y" || confirm == "y" || confirm == "" {
+		c.User.AddFriend(inviteeUser)
+	}
 }
 
 func (c *Client) SeeActiveSentInvitations() {
@@ -551,4 +587,50 @@ func ValidatePassword(password string) (err error) {
 		err = errors.New(reason)
 	}
 	return
+}
+
+func (c *Client) SeeOnlineFriends() {
+	friends, err := c.User.SeeFriends()
+	if err != nil {
+		reason := fmt.Sprintf("error while fetching online friends for client %s: %s", (*c.Conn).RemoteAddr(), err)
+		GetLogger().Println(reason)
+		c.Err = errors.New(reason)
+		return
+	}
+	c.SendMessage("\n****************** Online Friends List *****************\n", true)
+	for idx, friend := range friends {
+		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, friend), true)
+	}
+	// TODO: Pagination and search
+	userInput := c.SendAndReceiveMsg("Enter a friend's index to start chat: ", false)
+	friendIdx, err := strconv.Atoi(userInput)
+	if err != nil {
+		reason := fmt.Sprintf("error while parsing user input %s to start chat: %s", userInput, err)
+		GetLogger().Println(reason)
+		c.Err = errors.New(reason)
+		return
+	}
+	c.StarChat(friends[friendIdx])
+}
+
+func (c *Client) SeeFriends() {
+	friends, err := c.User.SeeFriends()
+	if err != nil {
+		reason := fmt.Sprintf("error while fetching friends for client %s: %s", (*c.Conn).RemoteAddr(), err)
+		GetLogger().Println(reason)
+		c.Err = errors.New(reason)
+		return
+	}
+	c.SendMessage("\n****************** Friends List *****************\n", true)
+	for idx, friend := range friends {
+		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, friend), true)
+	}
+	// TODO: Pagination and search
+	for {
+		userInput := c.SendAndReceiveMsg("\nEnter 'b' key to go back\n", false)
+		if userInput == "b" {
+			break
+		}
+		c.SendMessage(fmt.Sprintf("Invalid input: %s", userInput), true)
+	}
 }
