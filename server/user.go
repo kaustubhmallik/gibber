@@ -8,19 +8,38 @@ import (
 	"github.com/mongodb/mongo-go-driver/mongo"
 	"github.com/pkg/errors"
 	"regexp"
+	"time"
 )
 
+// user document collection name and fields
 const (
-	UserCollection  = "users"
-	UserEmailField  = "email"
-	ValidEmailRegex = `^[\w\.=-]+@[\w\.-]+\.[\w]{2,3}$`
+	UserCollection              = "users"
+	UserFirstNameField          = "firstname"
+	UserLastNameField           = "lastname"
+	UserEmailField              = "email"
+	UserLoggedIn                = "loggedIn"
+	UserFriendsField            = "friends"
+	UserPasswordField           = "password"
+	UserActiveInvitesSentField  = "activeInvites.sent"
+	UserActiveInvitesRecvdField = "activeInvites.received"
 )
+
+const ValidEmailRegex = `^[\w\.=-]+@[\w\.-]+\.[\w]{2,3}$`
+
+type InvitesData struct {
+	Sent     []string // user emails
+	Received []string // user emails
+}
 
 // User details
 type User struct {
 	FirstName, LastName string
 	Email               string
 	Password            string // hashed
+	LastLogin           time.Time
+	ActiveInvites       InvitesData
+	InActiveInvites     InvitesData
+	Friends             []string // user emails
 }
 
 func CreateUser(user *User) (id interface{}, err error) {
@@ -49,7 +68,12 @@ func CreateUser(user *User) (id interface{}, err error) {
 func GetUser(email string) (user *User, err error) {
 	collection := GetDBConn().Collection(UserCollection)
 	user = &User{}
-	err = collection.FindOne(context.Background(), bson.NewDocument(bson.EC.String(UserEmailField, email))).Decode(user)
+	err = collection.FindOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String(UserEmailField, email),
+		),
+	).Decode(user)
 	if err == mongo.ErrNoDocuments {
 		reason := fmt.Sprintf("no user found with email: %s", email)
 		GetLogger().Println(reason)
@@ -102,11 +126,11 @@ func (user *User) UpdatePassword(newEncryptedPassword string) (err error) {
 	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
 		context.Background(),
 		bson.NewDocument(
-			bson.EC.String("email", user.Email),
+			bson.EC.String(UserEmailField, user.Email),
 		),
 		bson.NewDocument(
-			bson.EC.SubDocumentFromElements("$set",
-				bson.EC.String("password", newEncryptedPassword),
+			bson.EC.SubDocumentFromElements(MongoSetOperator,
+				bson.EC.String(UserPasswordField, newEncryptedPassword),
 			),
 		),
 	)
@@ -125,21 +149,21 @@ func (user *User) UpdateName(firstName, lastName string) (err error) {
 	var updatedDoc *bson.Document
 	if firstName != "" && lastName != "" {
 		updatedDoc = bson.NewDocument(
-			bson.EC.SubDocumentFromElements("$set",
-				bson.EC.String("firstname", firstName),
-				bson.EC.String("lastname", lastName),
+			bson.EC.SubDocumentFromElements(MongoSetOperator,
+				bson.EC.String(UserFirstNameField, firstName),
+				bson.EC.String(UserLastNameField, lastName),
 			),
 		)
 	} else if firstName != "" {
 		updatedDoc = bson.NewDocument(
-			bson.EC.SubDocumentFromElements("$set",
-				bson.EC.String("firstname", firstName),
+			bson.EC.SubDocumentFromElements(MongoSetOperator,
+				bson.EC.String(UserFirstNameField, firstName),
 			),
 		)
 	} else if lastName != "" {
 		updatedDoc = bson.NewDocument(
-			bson.EC.SubDocumentFromElements("$set",
-				bson.EC.String("lastname", lastName),
+			bson.EC.SubDocumentFromElements(MongoSetOperator,
+				bson.EC.String(UserLastNameField, lastName),
 			),
 		)
 	} else { // nothing to update
@@ -148,7 +172,7 @@ func (user *User) UpdateName(firstName, lastName string) (err error) {
 		return
 	}
 	currentDocFilter := bson.NewDocument(
-		bson.EC.String("email", user.Email),
+		bson.EC.String(UserEmailField, user.Email),
 	)
 	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
 		context.Background(),
@@ -162,6 +186,191 @@ func (user *User) UpdateName(firstName, lastName string) (err error) {
 	} else {
 		reason := fmt.Sprintf("name update successful for user %s: %+v", user.Email, result)
 		GetLogger().Println(reason)
+	}
+	return
+}
+
+func (user *User) SendInvitation(invitedUser *User) (err error) {
+	// check if they are not already connected
+
+	GetDBConn().Collection(UserCollection).FindOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String(UserEmailField, user.Email),
+			bson.EC.String(UserFriendsField, invitedUser.Email),
+		),
+	)
+
+	// add an invite to the recipient user's received array
+	invitedUserFilter := bson.NewDocument(
+		bson.EC.String(UserEmailField, user.Email),
+	)
+	inviteeUserData := bson.NewDocument(
+		// TODO: Should first check if there is already an request from same invitee is made to the invited user
+		// Using $addToSet for now, will change it to $push once we add check if the request can't be repeated
+		bson.EC.SubDocumentFromElements(MongoAddToSetOperator,
+			// just storing as name can be changed b/w sending request and seen by intended receiver
+			// so will fetch other details when the receiver will see the invitation
+			bson.EC.String(UserActiveInvitesSentField, invitedUser.Email)),
+	)
+	GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		invitedUserFilter,
+		inviteeUserData,
+	)
+
+	inviteeUserFilter := bson.NewDocument(
+		bson.EC.String(UserEmailField, invitedUser.Email),
+	)
+	invitedUserData := bson.NewDocument(
+		bson.EC.SubDocumentFromElements(MongoAddToSetOperator,
+			bson.EC.String(UserActiveInvitesRecvdField, user.Email)),
+	)
+	GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		inviteeUserFilter,
+		invitedUserData,
+	)
+	return
+}
+
+func (user *User) AddFriend(invitedUser *User) (err error) {
+	// adding invitee user to target user as friend
+	userFilter := bson.NewDocument(
+		bson.EC.String(UserEmailField, user.Email),
+	)
+	userData := bson.NewDocument(
+		bson.EC.SubDocumentFromElements(MongoAddToSetOperator,
+			bson.EC.String(UserFriendsField, invitedUser.Email)),
+	)
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		userFilter,
+		userData,
+	)
+	if err != nil {
+		reason := fmt.Sprintf("error while adding user %s to user %s friends list: %s", invitedUser.Email, user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("error while adding user %s to user %s friends list: %s", invitedUser.Email, user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	}
+
+	// adding target user to invitee user as friend
+	userFilter = bson.NewDocument(
+		bson.EC.String(UserEmailField, invitedUser.Email),
+	)
+	userData = bson.NewDocument(
+		bson.EC.SubDocumentFromElements(MongoAddToSetOperator,
+			bson.EC.String(UserFriendsField, user.Email)),
+	)
+	result, err = GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		userFilter,
+		userData,
+	)
+	if err != nil {
+		reason := fmt.Sprintf("error while adding user %s to user %s friends list: %s", user.Email, invitedUser.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("error while adding user %s to user %s friends list: %s", user.Email, invitedUser.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	}
+	// TODO: A rollback is required to remove the invitee user who is already added to target user
+	return
+}
+
+// a user can see her active invitations and take an action on it i.e. accept/reject it
+// once he/she takes an action, it is pushed to the inactive invitations with the added
+// details of action taken
+func (user *User) FetchActiveReceivedInvitations() (invites []string, err error) {
+	fetchedUser := &User{}
+	GetDBConn().Collection(UserCollection).FindOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String(UserEmailField, user.Email),
+		),
+	).Decode(fetchedUser)
+	invites = fetchedUser.ActiveInvites.Received
+	return
+}
+
+func (user *User) FetchActiveSentInvitations() (invites []string, err error) {
+	fetchedUser := &User{}
+	GetDBConn().Collection(UserCollection).FindOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String(UserEmailField, user.Email),
+		),
+	).Decode(fetchedUser)
+	invites = fetchedUser.ActiveInvites.Sent
+	return
+}
+
+func (user *User) FetchInactiveSentInvitations() (invites []string, err error) {
+	fetchedUser := &User{}
+	GetDBConn().Collection(UserCollection).FindOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String(UserEmailField, user.Email),
+		),
+	).Decode(fetchedUser)
+	invites = fetchedUser.InActiveInvites.Sent
+	return
+}
+
+func (user *User) FetchInactiveReceivedInvitations() (invites []string, err error) {
+	fetchedUser := &User{}
+	GetDBConn().Collection(UserCollection).FindOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String(UserEmailField, user.Email),
+		),
+	).Decode(fetchedUser)
+	invites = fetchedUser.InActiveInvites.Received
+	return
+}
+
+func (user *User) SeeFriends() (friends []string, err error) {
+	fetchedUser := &User{}
+	GetDBConn().Collection(UserCollection).FindOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String(UserEmailField, user.Email),
+		),
+	).Decode(fetchedUser)
+	friends = fetchedUser.Friends
+	return
+}
+
+func (user *User) SeeOnlineFriends() (onlineFriends []string, err error) {
+	fetchedUser := &User{}
+	GetDBConn().Collection(UserCollection).FindOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String(UserEmailField, user.Email),
+		),
+	).Decode(fetchedUser)
+	friendEmails := fetchedUser.Friends
+	onlineFriends = make([]string, 5)
+	for _, friendEmail := range friendEmails {
+		friend := &User{}
+		GetDBConn().Collection(UserCollection).FindOne(
+			context.Background(),
+			bson.NewDocument(
+				bson.EC.String(UserEmailField, friendEmail),
+				bson.EC.Boolean(UserLoggedIn, true),
+			),
+		).Decode(friend)
+		if friend.Password != "" { // a user is found
+			onlineFriends = append(onlineFriends, fmt.Sprintf("%s %s: %s", friend.FirstName, friend.LastName, friendEmail))
+		}
 	}
 	return
 }
