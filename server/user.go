@@ -17,6 +17,7 @@ const (
 	UserFirstNameField          = "firstname"
 	UserLastNameField           = "lastname"
 	UserEmailField              = "email"
+	UserLoggedIn                = "loggedIn"
 	UserFriendsField            = "friends"
 	UserPasswordField           = "password"
 	UserActiveInvitesSentField  = "activeInvites.sent"
@@ -38,7 +39,7 @@ type User struct {
 	LastLogin           time.Time
 	ActiveInvites       InvitesData
 	InActiveInvites     InvitesData
-	ConnectedPeople     []string // user emails
+	Friends             []string // user emails
 }
 
 func CreateUser(user *User) (id interface{}, err error) {
@@ -233,6 +234,58 @@ func (user *User) SendInvitation(invitedUser *User) (err error) {
 	return
 }
 
+func (user *User) AddFriend(invitedUser *User) (err error) {
+	// adding invitee user to target user as friend
+	userFilter := bson.NewDocument(
+		bson.EC.String(UserEmailField, user.Email),
+	)
+	userData := bson.NewDocument(
+		bson.EC.SubDocumentFromElements(MongoAddToSetOperator,
+			bson.EC.String(UserFriendsField, invitedUser.Email)),
+	)
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		userFilter,
+		userData,
+	)
+	if err != nil {
+		reason := fmt.Sprintf("error while adding user %s to user %s friends list: %s", invitedUser.Email, user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("error while adding user %s to user %s friends list: %s", invitedUser.Email, user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	}
+
+	// adding target user to invitee user as friend
+	userFilter = bson.NewDocument(
+		bson.EC.String(UserEmailField, invitedUser.Email),
+	)
+	userData = bson.NewDocument(
+		bson.EC.SubDocumentFromElements(MongoAddToSetOperator,
+			bson.EC.String(UserFriendsField, user.Email)),
+	)
+	result, err = GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		userFilter,
+		userData,
+	)
+	if err != nil {
+		reason := fmt.Sprintf("error while adding user %s to user %s friends list: %s", user.Email, invitedUser.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("error while adding user %s to user %s friends list: %s", user.Email, invitedUser.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	}
+	// TODO: A rollback is required to remove the invitee user who is already added to target user
+	return
+}
+
 // a user can see her active invitations and take an action on it i.e. accept/reject it
 // once he/she takes an action, it is pushed to the inactive invitations with the added
 // details of action taken
@@ -281,6 +334,44 @@ func (user *User) FetchInactiveReceivedInvitations() (invites []string, err erro
 		),
 	).Decode(fetchedUser)
 	invites = fetchedUser.InActiveInvites.Received
+	return
+}
+
+func (user *User) SeeFriends() (friends []string, err error) {
+	fetchedUser := &User{}
+	GetDBConn().Collection(UserCollection).FindOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String(UserEmailField, user.Email),
+		),
+	).Decode(fetchedUser)
+	friends = fetchedUser.Friends
+	return
+}
+
+func (user *User) SeeOnlineFriends() (onlineFriends []string, err error) {
+	fetchedUser := &User{}
+	GetDBConn().Collection(UserCollection).FindOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String(UserEmailField, user.Email),
+		),
+	).Decode(fetchedUser)
+	friendEmails := fetchedUser.Friends
+	onlineFriends = make([]string, 5)
+	for _, friendEmail := range friendEmails {
+		friend := &User{}
+		GetDBConn().Collection(UserCollection).FindOne(
+			context.Background(),
+			bson.NewDocument(
+				bson.EC.String(UserEmailField, friendEmail),
+				bson.EC.Boolean(UserLoggedIn, true),
+			),
+		).Decode(friend)
+		if friend.Password != "" { // a user is found
+			onlineFriends = append(onlineFriends, fmt.Sprintf("%s %s: %s", friend.FirstName, friend.LastName, friendEmail))
+		}
+	}
 	return
 }
 
