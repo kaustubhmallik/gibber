@@ -161,7 +161,7 @@ func (c *Client) LoginUser() {
 			c.Err = fmt.Errorf("reading user password failed: %s", c.Err)
 			continue
 		}
-		c.Err = c.User.AuthenticateUser(password)
+		c.Err = c.User.LoginUser(password)
 		if c.Err != nil {
 			reason := fmt.Sprintf("user %s authentication failed: %s", c.Email, c.Err)
 			GetLogger().Println(reason)
@@ -632,5 +632,16 @@ func (c *Client) SeeFriends() {
 			break
 		}
 		c.SendMessage(fmt.Sprintf("Invalid input: %s", userInput), true)
+	}
+}
+
+func (c *Client) LogoutUser() {
+	if c.User.Email != "" {
+		err := c.User.Logout()
+		if err != nil {
+			reason := fmt.Sprintf("error while logging out client %s: %s", err)
+			GetLogger().Println(reason)
+			c.Err = errors.New(reason)
+		}
 	}
 }
