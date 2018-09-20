@@ -14,8 +14,8 @@ import (
 // user document collection name and fields
 const (
 	UserCollection              = "users"
-	UserFirstNameField          = "firstname"
-	UserLastNameField           = "lastname"
+	UserFirstNameField          = "firstName"
+	UserLastNameField           = "lastName"
 	UserEmailField              = "email"
 	UserLoggedIn                = "loggedIn"
 	UserFriendsField            = "friends"
@@ -87,7 +87,7 @@ func GetUser(email string) (user *User, err error) {
 }
 
 // raises an error if authentication fails due to any reason, including password mismatch
-func (user *User) AuthenticateUser(password string) (err error) {
+func (user *User) LoginUser(password string) (err error) {
 	fetchDBUser, err := GetUser(user.Email)
 	if err != nil {
 		reason := fmt.Sprintf("authenticate user failed: %s", err)
@@ -101,9 +101,37 @@ func (user *User) AuthenticateUser(password string) (err error) {
 		err = errors.New(reason) // TODO: May be we can create a new collection just to store credential and other auth related data
 		return
 	}
+
+	userFilter := bson.NewDocument(
+		bson.EC.String(UserEmailField, user.Email),
+	)
+	userData := bson.NewDocument(
+		bson.EC.SubDocumentFromElements(MongoSetOperator,
+			bson.EC.Boolean(UserLoggedIn, true)),
+	)
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		userFilter,
+		userData,
+	)
+	if err != nil {
+		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	}
+
 	user.Password = fetchDBUser.Password
 	user.FirstName = fetchDBUser.FirstName
 	user.LastName = fetchDBUser.LastName
+
+
+
 	return
 }
 
@@ -373,6 +401,32 @@ func (user *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 		}
 	}
 	return
+}
+
+func (user *User) Logout() {
+	userFilter := bson.NewDocument(
+		bson.EC.String(UserEmailField, user.Email),
+	)
+	userData := bson.NewDocument(
+		bson.EC.SubDocumentFromElements(MongoSetOperator,
+			bson.EC.Boolean(UserLoggedIn, false)),
+	)
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		userFilter,
+		userData,
+	)
+	if err != nil {
+		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	}
 }
 
 func ValidUserEmail(email string) bool {

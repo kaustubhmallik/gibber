@@ -51,6 +51,7 @@ func establishClientConnection(conn *net.Conn) {
 	}
 
 	client.Authenticate()
+	defer client.LogoutUser()
 	if client.Err != nil {
 		return
 	}
