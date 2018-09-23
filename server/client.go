@@ -29,7 +29,7 @@ const (
 	FailedRegistration       = "\nRegistration Failed"
 	SetPasswordPrompt        = "New Password: "
 	ConfirmSetPasswordPrompt = "Confirm Password: "
-	SendInvitationInfo       = "You can search other people uniquely by their email.\"
+	SendInvitationInfo       = "You can search other people uniquely by their email.\n"
 	EmailSearchPrompt        = "Email(\"q\" to quit): "
 )
 
@@ -47,12 +47,23 @@ const (
 
 // user menus
 const (
-	DashboardHeader = "********************** Welcome to Gibber ************************\n\nPlease select one of " +
-		"the option from below.\n"
-	UserMenu = "\n0 - Exit\n1 - Start/Resume Chat\n2 - See All Friends\n3 - Add new connection\n4 - See new inviations\n5 - Change password\n" +
-		"6 - Change Name\n7. See your profile\n\nEnter a choice: "
-	InvitationMenu = "0 - Go back to previous menu\n1 - Active Sent Invites\n2 - Active Received Invites\n" +
-		"3 - Inactive Sent Invites\n4 - Inactive Received Invites\n\nEnter a choice: "
+	DashboardHeader = "********************** Welcome to Gibber ************************" +
+		"\n\nPlease select one of the option from below."
+	UserMenu = "\n0 - Exit" +
+		"\n1 - Start/Resume Chat" +
+		"\n2 - See All Friends" +
+		"\n3 - Send invitation" +
+		"\n4 - See all invitations" +
+		"\n5 - Change password" +
+		"\n6 - Change Name" +
+		"\n7 - See your profile" +
+		"\n\nEnter a choice: "
+	InvitationMenu = "\n0 - Go back to previous menu" +
+		"\n1 - Active Sent Invites" +
+		"\n2 - Active Received Invites" +
+		"\n3 - Inactive Sent Invites" +
+		"\n4 - Inactive Received Invites" +
+		"\n\nEnter a choice: "
 )
 
 const (
@@ -358,7 +369,7 @@ func (c *Client) SendInvitation() {
 		if c.Err != nil {
 		}
 		if confirm == "Y" || confirm == "y" || confirm == "" {
-			err = user.SendInvitation(c.User)
+			err = c.User.SendInvitation(user)
 		}
 	}
 }
@@ -405,7 +416,7 @@ func (c *Client) SeeActiveReceivedInvitations() {
 	for idx, invite := range invites {
 		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, invite), true)
 	}
-	userInput := c.SendAndReceiveMsg("Choose one to accept or reject(\"b to go back\"): ", false)
+	userInput := c.SendAndReceiveMsg("\nChoose one to accept or reject(\"b to go back\"): ", false)
 	if c.Err != nil {
 		reason := fmt.Sprintf("error while receiving user invitation input from client %s: %s", (*c.Conn).RemoteAddr(), err)
 		GetLogger().Println(reason)
@@ -424,7 +435,8 @@ func (c *Client) SeeActiveReceivedInvitations() {
 		c.SendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
 		return
 	}
-	inviteeUser, err := GetUser(invites[invitationIdx]) // user who sent this invitation
+	// The user sees 1-based indexing, so reducing one from it
+	inviteeUser, err := GetUser(invites[invitationIdx-1]) // user who sent this invitation
 	if err != nil {
 		reason := fmt.Sprintf("fetching invitee user %s details failed from client %s: %s", invites[invitationIdx],
 			(*c.Conn).RemoteAddr(), userInput)
@@ -433,14 +445,24 @@ func (c *Client) SeeActiveReceivedInvitations() {
 		c.SendMessage("Internal error. Try again", true)
 		c.SeeActiveReceivedInvitations()
 	}
-	c.SendMessage("===== Invitation Details =====", true)
+	c.SendMessage("\n===== Invitation Details =====\n", true)
 	c.SendMessage(fmt.Sprintf("Name: %s %s", inviteeUser.FirstName, inviteeUser.LastName), true)
 	c.SendMessage(fmt.Sprintf("Email: %s", inviteeUser.Email), true)
-	confirm := c.SendAndReceiveMsg("Confirm(Y/n): ", false)
+	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false)
 	if c.Err != nil {
 	}
 	if confirm == "Y" || confirm == "y" || confirm == "" {
-		c.User.AddFriend(inviteeUser)
+		err = c.User.AddFriend(inviteeUser)
+		if err != nil {
+			c.SendMessage(fmt.Sprintf("\nAdding %s as friend failed\n", inviteeUser.Email), true)
+			reason := fmt.Sprintf("adding %s as friend to %s failed: %s", c.User.Email, inviteeUser.Email, err)
+			GetLogger().Println(reason)
+			c.Err = errors.New(reason)
+		} else {
+			c.SendMessage("\nAdded %s as friend successfully\n", true)
+			reason := fmt.Sprintf("adding %s as friend to %s failed: %s", c.User.Email, inviteeUser.Email, err)
+			GetLogger().Println(reason)
+		}
 	}
 }
 
@@ -610,6 +632,7 @@ func (c *Client) SeeOnlineFriends() {
 		c.Err = errors.New(reason)
 		return
 	}
+	// TODO: Check if valid friendIndex
 	c.StarChat(friends[friendIdx])
 }
 
