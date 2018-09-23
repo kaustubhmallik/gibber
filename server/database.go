@@ -17,7 +17,6 @@ const (
 	MongoAddToSetOperator = "$addToSet"
 )
 
-
 var MongoHost = os.Getenv("GIBBER_MONGO_HOST")
 var MongoPort = os.Getenv("GIBBER_MONGO_PORT")
 var MongoUser = os.Getenv("GIBBER_MONGO_USER")
@@ -31,7 +30,7 @@ var connOnce sync.Once
 // initializes a new client, and set the target database handler
 func createConnectionPool() {
 	//address := fmt.Sprintf("%s://%s:%s@%s:%s", ConnType, MongoHost, MongoPort, MongoUser, MongoPwd)
-	address := fmt.Sprintf("%s://%s:%s@%s:%s/?authSource=%s", ConnScheme, MongoUser, MongoPwd, MongoHost,
+	address := fmt.Sprintf("%s://%s:%s@%s:%s/%s", ConnScheme, MongoUser, MongoPwd, MongoHost,
 		MongoPort, MongoDatabase)
 	dbClient, err := mongo.NewClient(address)
 	if err != nil {
