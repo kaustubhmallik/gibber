@@ -13,8 +13,9 @@ const ConnScheme = "mongodb"
 // mongodb query operators
 const (
 	MongoSetOperator      = "$set"
-	MongoPushOperator      = "$set"
+	MongoPushOperator     = "$push"
 	MongoAddToSetOperator = "$addToSet"
+	MongoPullOperator     = "$pull"
 )
 
 var MongoHost = os.Getenv("GIBBER_MONGO_HOST")

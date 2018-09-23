@@ -59,6 +59,7 @@ func CreateUser(user *User) (id interface{}, err error) {
 	user.ActiveInvites.Received = make([]string, 0)
 	user.InActiveInvites.Sent = make([]string, 0)
 	user.InActiveInvites.Received = make([]string, 0)
+	user.Friends = make([]string, 0)
 	userMap := MapLowercaseKeys(structs.Map(*user))
 	collection := GetDBConn().Collection(UserCollection)
 	res, err := collection.InsertOne(context.Background(), userMap)
@@ -346,6 +347,79 @@ func (user *User) AddFriend(invitedUser *User) (err error) {
 		err = errors.New(reason)
 	}
 	// TODO: A rollback is required to remove the invitee user who is already added to target user
+	return
+}
+
+func (user *User) CancelInvitation(invitedUser *User) (err error) {
+	// check if they are not already connected
+
+	GetDBConn().Collection(UserCollection).FindOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String(UserEmailField, user.Email),
+			bson.EC.String(UserFriendsField, invitedUser.Email),
+		),
+	)
+
+	// add an invite to the recipient user's received array
+	invitedUserFilter := bson.NewDocument(
+		bson.EC.String(UserEmailField, user.Email),
+	)
+	inviteeUserData := bson.NewDocument(
+		// TODO: Should first check if there is already an request from same invitee is made to the invited user
+		// Using $addToSet for now, will change it to $push once we add check if the request can't be repeated
+		bson.EC.SubDocumentFromElements(MongoPullOperator,
+			// just storing as name can be changed b/w sending request and seen by intended receiver
+			// so will fetch other details when the receiver will see the invitation
+			bson.EC.String(UserActiveInvitesSentField, invitedUser.Email)),
+	)
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		invitedUserFilter,
+		inviteeUserData,
+	)
+
+	if err != nil {
+		reason := fmt.Sprintf("error while adding %s into %s's active sent invitation: %s", user.Email,
+			invitedUser.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("invalid update count while adding %s into %s's active sent invitation: %s", user.Email,
+			invitedUser.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	}
+
+	inviteeUserFilter := bson.NewDocument(
+		bson.EC.String(UserEmailField, invitedUser.Email),
+	)
+	invitedUserData := bson.NewDocument(
+		bson.EC.SubDocumentFromElements(MongoPullOperator,
+			bson.EC.String(UserActiveInvitesRecvdField, user.Email)),
+	)
+	result, err = GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		inviteeUserFilter,
+		invitedUserData,
+	)
+	if err != nil {
+		reason := fmt.Sprintf("error while adding %s into %s's active sent invitation: %s", user.Email,
+			invitedUser.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		// TODO: Add rollback logic
+		return
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("invalid update count while adding %s into %s's active sent invitation: %s", user.Email,
+			invitedUser.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		// TODO: Add rollback logic
+		return
+	}
 	return
 }
 
