@@ -13,15 +13,17 @@ import (
 
 // user document collection name and fields
 const (
-	UserCollection              = "users"
-	UserFirstNameField          = "firstName"
-	UserLastNameField           = "lastName"
-	UserEmailField              = "email"
-	UserLoggedIn                = "loggedIn"
-	UserFriendsField            = "friends"
-	UserPasswordField           = "password"
-	UserActiveInvitesSentField  = "activeInvites.sent"
-	UserActiveInvitesRecvdField = "activeInvites.received"
+	UserCollection               = "users"
+	UserFirstNameField           = "firstname"
+	UserLastNameField            = "lastname"
+	UserEmailField               = "email"
+	UserLoggedIn                 = "loggedin"
+	UserFriendsField             = "friends"
+	UserPasswordField            = "password"
+	UserActiveInvitesSentField   = "activeinvites.sent"
+	UserActiveInvitesRecvdField  = "activeinvites.received"
+	UserInctiveInvitesSentField  = "inactiveinvites.sent"
+	UserInctiveInvitesRecvdField = "inactiveinvites.received"
 )
 
 const ValidEmailRegex = `^[\w\.=-]+@[\w\.-]+\.[\w]{2,3}$`
@@ -40,6 +42,7 @@ type User struct {
 	ActiveInvites       InvitesData
 	InActiveInvites     InvitesData
 	Friends             []string // user emails
+	LoggedIn            bool     // depicts if the user is currently logged in
 }
 
 func CreateUser(user *User) (id interface{}, err error) {
@@ -51,6 +54,11 @@ func CreateUser(user *User) (id interface{}, err error) {
 		return
 	}
 	user.Password = GetSHA512Encrypted(user.Password)
+	user.LoggedIn = true // as user is just created, he becomes online, until he quits the session
+	user.ActiveInvites.Sent = make([]string, 0)
+	user.ActiveInvites.Received = make([]string, 0)
+	user.InActiveInvites.Sent = make([]string, 0)
+	user.InActiveInvites.Received = make([]string, 0)
 	userMap := MapLowercaseKeys(structs.Map(*user))
 	collection := GetDBConn().Collection(UserCollection)
 	res, err := collection.InsertOne(context.Background(), userMap)
@@ -129,8 +137,6 @@ func (user *User) LoginUser(password string) (err error) {
 	user.Password = fetchDBUser.Password
 	user.FirstName = fetchDBUser.FirstName
 	user.LastName = fetchDBUser.LastName
-
-
 
 	return
 }
@@ -241,11 +247,25 @@ func (user *User) SendInvitation(invitedUser *User) (err error) {
 			// so will fetch other details when the receiver will see the invitation
 			bson.EC.String(UserActiveInvitesSentField, invitedUser.Email)),
 	)
-	GetDBConn().Collection(UserCollection).UpdateOne(
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
 		context.Background(),
 		invitedUserFilter,
 		inviteeUserData,
 	)
+
+	if err != nil {
+		reason := fmt.Sprintf("error while adding %s into %s's active sent invitation: %s", user.Email,
+			invitedUser.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("invalid update count while adding %s into %s's active sent invitation: %s", user.Email,
+			invitedUser.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	}
 
 	inviteeUserFilter := bson.NewDocument(
 		bson.EC.String(UserEmailField, invitedUser.Email),
@@ -254,11 +274,26 @@ func (user *User) SendInvitation(invitedUser *User) (err error) {
 		bson.EC.SubDocumentFromElements(MongoAddToSetOperator,
 			bson.EC.String(UserActiveInvitesRecvdField, user.Email)),
 	)
-	GetDBConn().Collection(UserCollection).UpdateOne(
+	result, err = GetDBConn().Collection(UserCollection).UpdateOne(
 		context.Background(),
 		inviteeUserFilter,
 		invitedUserData,
 	)
+	if err != nil {
+		reason := fmt.Sprintf("error while adding %s into %s's active sent invitation: %s", user.Email,
+			invitedUser.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		// TODO: Add rollback logic
+		return
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("invalid update count while adding %s into %s's active sent invitation: %s", user.Email,
+			invitedUser.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		// TODO: Add rollback logic
+		return
+	}
 	return
 }
 
@@ -403,7 +438,7 @@ func (user *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 	return
 }
 
-func (user *User) Logout() {
+func (user *User) Logout() (err error) {
 	userFilter := bson.NewDocument(
 		bson.EC.String(UserEmailField, user.Email),
 	)
@@ -427,6 +462,7 @@ func (user *User) Logout() {
 		err = errors.New(reason)
 		return
 	}
+	return
 }
 
 func ValidUserEmail(email string) bool {
