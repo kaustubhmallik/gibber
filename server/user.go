@@ -13,52 +13,38 @@ import (
 
 // user document collection name and fields
 const (
-	UserCollection               = "users"
-	UserFirstNameField           = "firstname"
-	UserLastNameField            = "lastname"
-	UserEmailField               = "email"
-	UserLoggedIn                 = "loggedin"
-	UserFriendsField             = "friends"
-	UserPasswordField            = "password"
-	UserActiveInvitesSentField   = "activeinvites.sent"
-	UserActiveInvitesRecvdField  = "activeinvites.received"
-	UserInctiveInvitesSentField  = "inactiveinvites.sent"
-	UserInctiveInvitesRecvdField = "inactiveinvites.received"
+	UserCollection     = "users"
+	UserFirstNameField = "firstname"
+	UserLastNameField  = "lastname"
+	UserEmailField     = "email"
+	UserLoggedIn       = "loggedin"
+	UserPasswordField  = "password"
+	InvitesDataField   = "invitesdataid"
 )
 
 const ValidEmailRegex = `^[\w\.=-]+@[\w\.-]+\.[\w]{2,3}$`
 
-type InvitesData struct {
-	Sent     []string // user emails
-	Received []string // user emails
-}
-
 // User details
 type User struct {
+	Id                  interface{}
 	FirstName, LastName string
 	Email               string
 	Password            string // hashed
 	LastLogin           time.Time
-	ActiveInvites       InvitesData
-	InActiveInvites     InvitesData
-	Friends             []string // user emails
-	LoggedIn            bool     // depicts if the user is currently logged in
+	LoggedIn            bool   // depicts if the user is currently logged in
+	InvitesDataId       string // object ID of invitesData
 }
 
-func CreateUser(user *User) (id interface{}, err error) {
+func CreateUser(user *User) (userId string, err error) {
 	var fetchUser *User
 	if user.ExistingUser() {
-		reason := fmt.Sprintf("user %#v already exist with email %s", fetchUser, user.Email) // passed email id should be unique
+		reason := fmt.Sprintf("user %#v already exist with email %s", fetchUser, user.Email) // passed email userId should be unique
 		GetLogger().Printf(reason)
 		err = errors.New(reason)
 		return
 	}
 	user.Password = GetSHA512Encrypted(user.Password)
 	user.LoggedIn = true // as user is just created, he becomes online, until he quits the session
-	user.ActiveInvites.Sent = make([]string, 0)
-	user.ActiveInvites.Received = make([]string, 0)
-	user.InActiveInvites.Sent = make([]string, 0)
-	user.InActiveInvites.Received = make([]string, 0)
 	userMap := MapLowercaseKeys(structs.Map(*user))
 	collection := GetDBConn().Collection(UserCollection)
 	res, err := collection.InsertOne(context.Background(), userMap)
@@ -67,8 +53,38 @@ func CreateUser(user *User) (id interface{}, err error) {
 		err = errors.New(reason)
 		GetLogger().Printf(reason)
 	} else {
-		id = res.InsertedID // TODO: Check if it is mostly string (expected), change the id to string, and use reflection on InsertID
-		GetLogger().Printf("user %#v successfully created with id: %v", userMap, res)
+		userId = res.InsertedID.(string) // TODO: Check if it is mostly string (expected), change the userId to string, and use reflection on InsertID
+		GetLogger().Printf("user %#v successfully created with userId: %v", userMap, res)
+	}
+	var invitesDataId string
+	invitesDataId, err = CreateUserInvitesData(userId)
+	if err != nil {
+		var delRes *DeleteResult
+		delRes, err = GetDBConn().Collection(UserCollection).DeleteOne(
+			context.Background(),
+			bson.NewDocument(
+				bson.EC.String(ObjectID, userId),
+			),
+		)
+		if err == nil || delRes.DeletedCount == 0 {
+			reason := fmt.Sprintf("error while rollbacking deleting user %s: %s", userId, err)
+			GetLogger().Println(reason)
+			return
+		}
+	}
+	updateRes, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String(ObjectID, userId),
+		),
+		bson.NewDocument(
+			bson.EC.String(InvitesDataField, invitesDataId),
+		),
+	)
+	if err != nil || updateRes.ModifiedCount != 1 {
+		reason := fmt.Sprintf("error while setting up invites data for user%s: %s", userId, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
 	}
 	return
 }
@@ -224,194 +240,6 @@ func (user *User) UpdateName(firstName, lastName string) (err error) {
 	return
 }
 
-func (user *User) SendInvitation(invitedUser *User) (err error) {
-	// check if they are not already connected
-
-	GetDBConn().Collection(UserCollection).FindOne(
-		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(UserEmailField, user.Email),
-			bson.EC.String(UserFriendsField, invitedUser.Email),
-		),
-	)
-
-	// add an invite to the recipient user's received array
-	invitedUserFilter := bson.NewDocument(
-		bson.EC.String(UserEmailField, user.Email),
-	)
-	inviteeUserData := bson.NewDocument(
-		// TODO: Should first check if there is already an request from same invitee is made to the invited user
-		// Using $addToSet for now, will change it to $push once we add check if the request can't be repeated
-		bson.EC.SubDocumentFromElements(MongoAddToSetOperator,
-			// just storing as name can be changed b/w sending request and seen by intended receiver
-			// so will fetch other details when the receiver will see the invitation
-			bson.EC.String(UserActiveInvitesSentField, invitedUser.Email)),
-	)
-	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
-		context.Background(),
-		invitedUserFilter,
-		inviteeUserData,
-	)
-
-	if err != nil {
-		reason := fmt.Sprintf("error while adding %s into %s's active sent invitation: %s", user.Email,
-			invitedUser.Email, err)
-		GetLogger().Println(reason)
-		err = errors.New(reason)
-		return
-	} else if result.ModifiedCount != 1 {
-		reason := fmt.Sprintf("invalid update count while adding %s into %s's active sent invitation: %s", user.Email,
-			invitedUser.Email, err)
-		GetLogger().Println(reason)
-		err = errors.New(reason)
-		return
-	}
-
-	inviteeUserFilter := bson.NewDocument(
-		bson.EC.String(UserEmailField, invitedUser.Email),
-	)
-	invitedUserData := bson.NewDocument(
-		bson.EC.SubDocumentFromElements(MongoAddToSetOperator,
-			bson.EC.String(UserActiveInvitesRecvdField, user.Email)),
-	)
-	result, err = GetDBConn().Collection(UserCollection).UpdateOne(
-		context.Background(),
-		inviteeUserFilter,
-		invitedUserData,
-	)
-	if err != nil {
-		reason := fmt.Sprintf("error while adding %s into %s's active sent invitation: %s", user.Email,
-			invitedUser.Email, err)
-		GetLogger().Println(reason)
-		err = errors.New(reason)
-		// TODO: Add rollback logic
-		return
-	} else if result.ModifiedCount != 1 {
-		reason := fmt.Sprintf("invalid update count while adding %s into %s's active sent invitation: %s", user.Email,
-			invitedUser.Email, err)
-		GetLogger().Println(reason)
-		err = errors.New(reason)
-		// TODO: Add rollback logic
-		return
-	}
-	return
-}
-
-func (user *User) AddFriend(invitedUser *User) (err error) {
-	// adding invitee user to target user as friend
-	userFilter := bson.NewDocument(
-		bson.EC.String(UserEmailField, user.Email),
-	)
-	userData := bson.NewDocument(
-		bson.EC.SubDocumentFromElements(MongoAddToSetOperator,
-			bson.EC.String(UserFriendsField, invitedUser.Email)),
-	)
-	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
-		context.Background(),
-		userFilter,
-		userData,
-	)
-	if err != nil {
-		reason := fmt.Sprintf("error while adding user %s to user %s friends list: %s", invitedUser.Email, user.Email, err)
-		GetLogger().Println(reason)
-		err = errors.New(reason)
-		return
-	} else if result.ModifiedCount != 1 {
-		reason := fmt.Sprintf("error while adding user %s to user %s friends list: %s", invitedUser.Email, user.Email, err)
-		GetLogger().Println(reason)
-		err = errors.New(reason)
-		return
-	}
-
-	// adding target user to invitee user as friend
-	userFilter = bson.NewDocument(
-		bson.EC.String(UserEmailField, invitedUser.Email),
-	)
-	userData = bson.NewDocument(
-		bson.EC.SubDocumentFromElements(MongoAddToSetOperator,
-			bson.EC.String(UserFriendsField, user.Email)),
-	)
-	result, err = GetDBConn().Collection(UserCollection).UpdateOne(
-		context.Background(),
-		userFilter,
-		userData,
-	)
-	if err != nil {
-		reason := fmt.Sprintf("error while adding user %s to user %s friends list: %s", user.Email, invitedUser.Email, err)
-		GetLogger().Println(reason)
-		err = errors.New(reason)
-	} else if result.ModifiedCount != 1 {
-		reason := fmt.Sprintf("error while adding user %s to user %s friends list: %s", user.Email, invitedUser.Email, err)
-		GetLogger().Println(reason)
-		err = errors.New(reason)
-	}
-	// TODO: A rollback is required to remove the invitee user who is already added to target user
-	return
-}
-
-// a user can see her active invitations and take an action on it i.e. accept/reject it
-// once he/she takes an action, it is pushed to the inactive invitations with the added
-// details of action taken
-func (user *User) FetchActiveReceivedInvitations() (invites []string, err error) {
-	fetchedUser := &User{}
-	GetDBConn().Collection(UserCollection).FindOne(
-		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(UserEmailField, user.Email),
-		),
-	).Decode(fetchedUser)
-	invites = fetchedUser.ActiveInvites.Received
-	return
-}
-
-func (user *User) FetchActiveSentInvitations() (invites []string, err error) {
-	fetchedUser := &User{}
-	GetDBConn().Collection(UserCollection).FindOne(
-		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(UserEmailField, user.Email),
-		),
-	).Decode(fetchedUser)
-	invites = fetchedUser.ActiveInvites.Sent
-	return
-}
-
-func (user *User) FetchInactiveSentInvitations() (invites []string, err error) {
-	fetchedUser := &User{}
-	GetDBConn().Collection(UserCollection).FindOne(
-		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(UserEmailField, user.Email),
-		),
-	).Decode(fetchedUser)
-	invites = fetchedUser.InActiveInvites.Sent
-	return
-}
-
-func (user *User) FetchInactiveReceivedInvitations() (invites []string, err error) {
-	fetchedUser := &User{}
-	GetDBConn().Collection(UserCollection).FindOne(
-		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(UserEmailField, user.Email),
-		),
-	).Decode(fetchedUser)
-	invites = fetchedUser.InActiveInvites.Received
-	return
-}
-
-func (user *User) SeeFriends() (friends []string, err error) {
-	fetchedUser := &User{}
-	GetDBConn().Collection(UserCollection).FindOne(
-		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(UserEmailField, user.Email),
-		),
-	).Decode(fetchedUser)
-	friends = fetchedUser.Friends
-	return
-}
-
 func (user *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 	fetchedUser := &User{}
 	GetDBConn().Collection(UserCollection).FindOne(
@@ -420,14 +248,22 @@ func (user *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 			bson.EC.String(UserEmailField, user.Email),
 		),
 	).Decode(fetchedUser)
-	friendEmails := fetchedUser.Friends
+	invitesData, err := GetUserInvitesData(fetchedUser.InvitesDataId)
+	if err != nil {
+		return
+	}
+	friendEmails, err := GetAcceptedInvitations(user.Id.(string))
+	if err != nil {
+		reason := fmt.Sprintf("error while fetching user %s accepted invitations: %s", user.Id, err)
+	}
 	onlineFriends = make([]string, 5)
-	for _, friendEmail := range friendEmails {
+	for _, acceptedInvite := range friendEmails {
 		friend := &User{}
+		if acceptedInvite.Sender != user.Id
 		GetDBConn().Collection(UserCollection).FindOne(
 			context.Background(),
 			bson.NewDocument(
-				bson.EC.String(UserEmailField, friendEmail),
+				bson.EC.String(UserEmailField, acceptedInvite.Sender),
 				bson.EC.Boolean(UserLoggedIn, true),
 			),
 		).Decode(friend)

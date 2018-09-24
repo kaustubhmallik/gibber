@@ -30,7 +30,7 @@ const (
 	SetPasswordPrompt        = "New Password: "
 	ConfirmSetPasswordPrompt = "Confirm Password: "
 	SendInvitationInfo       = "You can search other people uniquely by their email.\n"
-	EmailSearchPrompt        = "Email(\"q\" to quit): "
+	EmailSearchPrompt        = "\nEmail(\"q\" to quit): "
 )
 
 // specific errors
@@ -405,7 +405,7 @@ func (c *Client) SeeInvitation() {
 }
 
 func (c *Client) SeeActiveReceivedInvitations() {
-	invites, err := c.User.FetchActiveReceivedInvitations()
+	invites, err := c.User.GetActiveReceivedInvitations()
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching active received invitations for user %s: %s", c.Email, err)
 		GetLogger().Println(reason)
@@ -467,7 +467,54 @@ func (c *Client) SeeActiveReceivedInvitations() {
 }
 
 func (c *Client) SeeActiveSentInvitations() {
-
+	invites, err := c.User.GetActiveSentInvitations()
+	if err != nil {
+		reason := fmt.Sprintf("error while fetching active sent invitations for user %s: %s", c.Email, err)
+		GetLogger().Println(reason)
+		c.Err = errors.New(reason)
+		return
+	}
+	c.SendMessage("\n**** Active Sent Invitations ****\n", true)
+	for idx, invite := range invites {
+		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, invite), true)
+	}
+	userInput := c.SendAndReceiveMsg("\nChoose one to cancel(\"b to go back\"): ", false)
+	if c.Err != nil {
+		reason := fmt.Sprintf("error while seeing active user invitation sent from client %s: %s", (*c.Conn).RemoteAddr(), err)
+		GetLogger().Println(reason)
+		c.Err = errors.New(reason)
+		return
+	}
+	if userInput == "b" || userInput == "B" {
+		return
+	}
+	invitationIdx, err := strconv.Atoi(userInput)
+	if err != nil || invitationIdx < 0 || invitationIdx > len(invites) {
+		reason := fmt.Sprintf("invitation index input %s parsing failed from client %s: %s", userInput,
+			(*c.Conn).RemoteAddr(), userInput)
+		GetLogger().Println(reason)
+		c.Err = errors.New(reason)
+		c.SendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
+		return
+	}
+	// The user sees 1-based indexing, so reducing one from it
+	inviteeUser, err := GetUser(invites[invitationIdx-1]) // user who sent this invitation
+	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false)
+	if c.Err != nil {
+	}
+	if confirm == "Y" || confirm == "y" || confirm == "" {
+		err = c.User.CancelInvitation(inviteeUser)
+		if err != nil {
+			c.SendMessage(fmt.Sprintf("\nCancelling invitation to %s failed\n", inviteeUser.Email), true)
+			reason := fmt.Sprintf("cancelling invitation from %s to %s failed: %s", c.User.Email, inviteeUser.Email, err)
+			GetLogger().Println(reason)
+			c.Err = errors.New(reason)
+		} else {
+			c.SendMessage(fmt.Sprintf("\nInvitation to %s successfully cancelled\n", inviteeUser.Email), true)
+			reason := fmt.Sprintf("cancelling invitation from %s to %s succeeded", c.User.Email, inviteeUser.Email)
+			GetLogger().Println(reason)
+		}
+	}
 }
 
 func (c *Client) SeeInactiveReceivedInvitations() {
@@ -590,14 +637,14 @@ func (c *Client) SeeSelfProfile() {
 func (c *Client) SeePublicProfile(email string) (user *User, err error) {
 	user, err = GetUser(email)
 	if err == mongo.ErrNoDocuments {
-		c.SendMessage(fmt.Sprintf("No user found with given email %s", email), true)
+		c.SendMessage(fmt.Sprintf("\nNo user found with given email %s", email), true)
 		if c.Err != nil {
 			reason := fmt.Sprintf("error while sending no user found msg: %s", c.Err)
 			GetLogger().Println(reason)
 			return
 		}
 	}
-	c.SendMessage(fmt.Sprintf("User found => First Name: %s, LastName: %s, Email: %s", user.FirstName, user.LastName,
+	c.SendMessage(fmt.Sprintf("\nUser found => First Name: %s, LastName: %s, Email: %s", user.FirstName, user.LastName,
 		user.Email), true)
 	return
 }
@@ -650,7 +697,7 @@ func (c *Client) SeeFriends() {
 	}
 	// TODO: Pagination and search
 	for {
-		userInput := c.SendAndReceiveMsg("\nEnter 'b' key to go back\n", false)
+		userInput := c.SendAndReceiveMsg("\nEnter 'b' to go back: ", false)
 		if userInput == "b" {
 			break
 		}

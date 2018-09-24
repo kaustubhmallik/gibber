@@ -13,10 +13,17 @@ const ConnScheme = "mongodb"
 // mongodb query operators
 const (
 	MongoSetOperator      = "$set"
-	MongoPushOperator      = "$set"
+	MongoPushOperator     = "$push"
 	MongoAddToSetOperator = "$addToSet"
+	MongoPullOperator     = "$pull"
 )
 
+// common fields/attributes of documents in various collections
+const (
+	ObjectID = "_id" // document level Primary Key
+	// Creation time of the document can be fetched via ObjectId.getTimestamp()
+	// see https://docs.mongodb.com/manual/reference/method/ObjectId.getTimestamp/#ObjectId.getTimestamp
+)
 
 var MongoHost = os.Getenv("GIBBER_MONGO_HOST")
 var MongoPort = os.Getenv("GIBBER_MONGO_PORT")
@@ -31,7 +38,7 @@ var connOnce sync.Once
 // initializes a new client, and set the target database handler
 func createConnectionPool() {
 	//address := fmt.Sprintf("%s://%s:%s@%s:%s", ConnType, MongoHost, MongoPort, MongoUser, MongoPwd)
-	address := fmt.Sprintf("%s://%s:%s@%s:%s/?authSource=%s", ConnScheme, MongoUser, MongoPwd, MongoHost,
+	address := fmt.Sprintf("%s://%s:%s@%s:%s/%s", ConnScheme, MongoUser, MongoPwd, MongoHost,
 		MongoPort, MongoDatabase)
 	dbClient, err := mongo.NewClient(address)
 	if err != nil {
