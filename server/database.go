@@ -18,6 +18,13 @@ const (
 	MongoPullOperator     = "$pull"
 )
 
+// common fields/attributes of documents in various collections
+const (
+	ObjectID = "_id" // document level Primary Key
+	// Creation time of the document can be fetched via ObjectId.getTimestamp()
+	// see https://docs.mongodb.com/manual/reference/method/ObjectId.getTimestamp/#ObjectId.getTimestamp
+)
+
 var MongoHost = os.Getenv("GIBBER_MONGO_HOST")
 var MongoPort = os.Getenv("GIBBER_MONGO_PORT")
 var MongoUser = os.Getenv("GIBBER_MONGO_USER")

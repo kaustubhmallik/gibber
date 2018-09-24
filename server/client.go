@@ -405,7 +405,7 @@ func (c *Client) SeeInvitation() {
 }
 
 func (c *Client) SeeActiveReceivedInvitations() {
-	invites, err := c.User.FetchActiveReceivedInvitations()
+	invites, err := c.User.GetActiveReceivedInvitations()
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching active received invitations for user %s: %s", c.Email, err)
 		GetLogger().Println(reason)
@@ -467,7 +467,7 @@ func (c *Client) SeeActiveReceivedInvitations() {
 }
 
 func (c *Client) SeeActiveSentInvitations() {
-	invites, err := c.User.FetchActiveSentInvitations()
+	invites, err := c.User.GetActiveSentInvitations()
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching active sent invitations for user %s: %s", c.Email, err)
 		GetLogger().Println(reason)
