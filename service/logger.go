@@ -1,4 +1,4 @@
-package server
+package service
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const LogFileName = "server.log"
+const LogFileName = "internal.log"
 const LogPrefix = "Gibber::Server	"
 
 // for transaction requests logging
@@ -22,7 +22,7 @@ func initLogger() (err error) {
 		err = fmt.Errorf("getting project root path failed: %s", err)
 		return
 	}
-	logDir := projectRootPath + "server/generated/"
+	logDir := projectRootPath + "internal/generated/"
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
 		os.Mkdir(logDir, 0755)
 	}
@@ -40,7 +40,7 @@ func initLogger() (err error) {
 func WriteLog(log string, params ...interface{}) {
 	logInit.Do(func() {
 		if err := initLogger(); err != nil {
-			panic(fmt.Sprintf("error while initializing server logger: %s", err))
+			panic(fmt.Sprintf("error while initializing internal logger: %s", err))
 		}
 	})
 	logger.Printf(log, params)
@@ -49,7 +49,7 @@ func WriteLog(log string, params ...interface{}) {
 func GetLogger() *log.Logger {
 	logInit.Do(func() {
 		if err := initLogger(); err != nil {
-			panic(fmt.Sprintf("error while initializing server logger: %s", err))
+			panic(fmt.Sprintf("error while initializing internal logger: %s", err))
 		}
 	})
 	return logger

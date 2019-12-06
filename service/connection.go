@@ -1,9 +1,9 @@
-package server
+package service
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
-	"github.com/pkg/errors"
 	"net"
 	"strings"
 )

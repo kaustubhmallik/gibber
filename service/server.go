@@ -1,4 +1,4 @@
-package server
+package service
 
 import (
 	"bufio"
@@ -60,7 +60,7 @@ func establishClientConnection(conn *net.Conn) {
 }
 
 func closeClientConnection(conn *net.Conn) {
-	GetLogger().Printf("client %s => closing connection from server", (*conn).RemoteAddr().String())
+	GetLogger().Printf("client %s => closing connection from internal", (*conn).RemoteAddr().String())
 	(*conn).Close()
 }
 

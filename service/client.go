@@ -1,9 +1,9 @@
-package server
+package service
 
 import (
+	"errors"
 	"fmt"
-	"github.com/mongodb/mongo-go-driver/mongo"
-	"github.com/pkg/errors"
+	"go.mongodb.org/mongo-driver/mongo"
 	"strconv"
 )
 
@@ -40,7 +40,7 @@ const (
 	ServerError      = "Server processing error"
 	EmptyInput       = "Empty input\n"
 	ShortPassword    = "Password should be at 6 characters long"
-	ReadingError     = "Error while receiving data at server"
+	ReadingError     = "Error while receiving data at internal"
 	ExitingMsg       = "Exiting..."
 	InvalidInput     = "Invalid input\n"
 )
@@ -436,7 +436,7 @@ func (c *Client) SeeActiveReceivedInvitations() {
 		return
 	}
 	// The user sees 1-based indexing, so reducing one from it
-	inviteeUser, err := GetUser(invites[invitationIdx-1]) // user who sent this invitation
+	inviteeUser, err := GetUser(invites[invitationIdx-1].Receiver) // user who sent this invitation
 	if err != nil {
 		reason := fmt.Sprintf("fetching invitee user %s details failed from client %s: %s", invites[invitationIdx],
 			(*c.Conn).RemoteAddr(), userInput)
@@ -498,7 +498,7 @@ func (c *Client) SeeActiveSentInvitations() {
 		return
 	}
 	// The user sees 1-based indexing, so reducing one from it
-	inviteeUser, err := GetUser(invites[invitationIdx-1]) // user who sent this invitation
+	inviteeUser, err := GetUser(invites[invitationIdx-1].Sender) // user who sent this invitation
 	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false)
 	if c.Err != nil {
 	}
@@ -680,7 +680,7 @@ func (c *Client) SeeOnlineFriends() {
 		return
 	}
 	// TODO: Check if valid friendIndex
-	c.StarChat(friends[friendIdx])
+	c.StarChat(friends[friendIdx].Email)
 }
 
 func (c *Client) SeeFriends() {

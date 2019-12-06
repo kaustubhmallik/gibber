@@ -1,9 +1,10 @@
-package server
+package service
 
 import (
 	"context"
 	"fmt"
-	"github.com/mongodb/mongo-go-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
 	"sync"
 )
@@ -40,7 +41,10 @@ func createConnectionPool() {
 	//address := fmt.Sprintf("%s://%s:%s@%s:%s", ConnType, MongoHost, MongoPort, MongoUser, MongoPwd)
 	address := fmt.Sprintf("%s://%s:%s@%s:%s/%s", ConnScheme, MongoUser, MongoPwd, MongoHost,
 		MongoPort, MongoDatabase)
-	dbClient, err := mongo.NewClient(address)
+	co := &options.ClientOptions{
+		Hosts: []string{address},
+	}
+	dbClient, err := mongo.NewClient(co)
 	if err != nil {
 		GetLogger().Fatalf("create mongo connection on %s pool failed: %s", address, err)
 	} else {

@@ -1,8 +1,8 @@
-package server
+package service
 
 import "io/ioutil"
 
-const LogoFilePath = "server/logo.txt"
+const LogoFilePath = "internal/logo.txt"
 
 func PrintLogo() {
 	filePath := ProjectRootPath() + LogoFilePath

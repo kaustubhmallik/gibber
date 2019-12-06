@@ -1,11 +1,10 @@
-package server
+package service
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"github.com/fatih/structs"
-	"github.com/mongodb/mongo-go-driver/bson"
 )
 
 const (
@@ -57,12 +56,12 @@ func CreateUserInvitesData(userId string) (userInvitesDataId string, err error) 
 
 func GetUserInvitesData(userId string) (userInvitesData *UserInvitesData, err error) {
 	userInvitesData = &UserInvitesData{}
-	err = GetDBConn().Collection(InviteCollection).FindOne(
-		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(UserIdField, userId),
-		),
-	).Decode(userInvitesData)
+	//err = GetDBConn().Collection(InviteCollection).FindOne(
+	//	context.Background(),
+	//	bson.NewDocument(
+	//		bson.EC.String(UserIdField, userId),
+	//	),
+	//).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching user invites data for user %s: %s", userId, err)
 		GetLogger().Println(reason)
@@ -73,12 +72,12 @@ func GetUserInvitesData(userId string) (userInvitesData *UserInvitesData, err er
 
 func GetReceivedInvitations(userId string) (invites []Invite, err error) {
 	userInvitesData := &UserInvitesData{}
-	err = GetDBConn().Collection(UserInvitesCollection).FindOne(
-		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(ObjectID, userId),
-		),
-	).Decode(userInvitesData)
+	//err = GetDBConn().Collection(UserInvitesCollection).FindOne(
+	//	context.Background(),
+	//	bson.NewDocument(
+	//		bson.EC.String(ObjectID, userId),
+	//	),
+	//).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userId, err)
 		GetLogger().Println(reason)
@@ -91,12 +90,12 @@ func GetReceivedInvitations(userId string) (invites []Invite, err error) {
 
 func GetSentInvitations(userId string) (invites []Invite, err error) {
 	userInvitesData := &UserInvitesData{}
-	err = GetDBConn().Collection(UserInvitesCollection).FindOne(
-		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(ObjectID, userId),
-		),
-	).Decode(userInvitesData)
+	//err = GetDBConn().Collection(UserInvitesCollection).FindOne(
+	//	context.Background(),
+	//	bson.NewDocument(
+	//		bson.EC.String(ObjectID, userId),
+	//	),
+	//).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userId, err)
 		GetLogger().Println(reason)
@@ -109,12 +108,12 @@ func GetSentInvitations(userId string) (invites []Invite, err error) {
 
 func GetAcceptedInvitations(userId string) (invites []Invite, err error) {
 	userInvitesData := &UserInvitesData{}
-	err = GetDBConn().Collection(UserInvitesCollection).FindOne(
-		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(ObjectID, userId),
-		),
-	).Decode(userInvitesData)
+	//err = GetDBConn().Collection(UserInvitesCollection).FindOne(
+	//	context.Background(),
+	//	bson.NewDocument(
+	//		bson.EC.String(ObjectID, userId),
+	//	),
+	//).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userId, err)
 		GetLogger().Println(reason)
@@ -127,12 +126,12 @@ func GetAcceptedInvitations(userId string) (invites []Invite, err error) {
 
 func GetRejectedInvitations(userId string) (invites []Invite, err error) {
 	userInvitesData := &UserInvitesData{}
-	err = GetDBConn().Collection(UserInvitesCollection).FindOne(
-		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(ObjectID, userId),
-		),
-	).Decode(userInvitesData)
+	//err = GetDBConn().Collection(UserInvitesCollection).FindOne(
+	//	context.Background(),
+	//	bson.NewDocument(
+	//		bson.EC.String(ObjectID, userId),
+	//	),
+	//).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userId, err)
 		GetLogger().Println(reason)
