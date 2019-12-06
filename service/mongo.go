@@ -7,6 +7,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
 	"sync"
+	"time"
 )
 
 const ConnScheme = "mongodb"
@@ -38,23 +39,21 @@ var connOnce sync.Once
 
 // initializes a new client, and set the target database handler
 func createConnectionPool() {
-	//address := fmt.Sprintf("%s://%s:%s@%s:%s", ConnType, MongoHost, MongoPort, MongoUser, MongoPwd)
 	address := fmt.Sprintf("%s://%s:%s@%s:%s/%s", ConnScheme, MongoUser, MongoPwd, MongoHost,
 		MongoPort, MongoDatabase)
-	co := &options.ClientOptions{
-		Hosts: []string{address},
-	}
-	dbClient, err := mongo.NewClient(co)
+	opts := options.Client().ApplyURI("mongodb://localhost:27017")
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	client, err := mongo.Connect(ctx, opts)
 	if err != nil {
 		GetLogger().Fatalf("create mongo connection on %s pool failed: %s", address, err)
 	} else {
 		GetLogger().Printf("mongo successfully connected on %s", address)
 	}
-	err = dbClient.Connect(context.TODO())
+	err = client.Connect(context.TODO())
 	if err != nil {
 		GetLogger().Fatalf("creating mongo context failed: %s", err)
 	}
-	dbConn = dbClient.Database(MongoDatabase)
+	dbConn = client.Database(MongoDatabase)
 }
 
 // returns database handler instance of mongo for target database

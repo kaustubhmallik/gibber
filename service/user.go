@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/fatih/structs"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"regexp"
 	"time"
@@ -55,48 +56,45 @@ func CreateUser(user *User) (userId string, err error) {
 		userId = res.InsertedID.(string) // TODO: Check if it is mostly string (expected), change the userId to string, and use reflection on InsertID
 		GetLogger().Printf("user %#v successfully created with userId: %v", userMap, res)
 	}
-	//var invitesDataId string
-	//invitesDataId, err = CreateUserInvitesData(userId)
+	var invitesDataId string
+	invitesDataId, err = CreateUserInvitesData(userId)
 	if err != nil {
-		//var delRes *DeleteResult
-		//delRes, err = GetDBConn().Collection(UserCollection).DeleteOne(
-		//	context.Background(),
-		//	bson.NewDocument(
-		//		bson.EC.String(ObjectID, userId),
-		//	),
-		//)
-		//if err == nil || delRes.DeletedCount == 0 {
-		//	reason := fmt.Sprintf("error while rollbacking deleting user %s: %s", userId, err)
-		//	GetLogger().Println(reason)
-		//	return
-		//}
+		var delRes *mongo.DeleteResult
+		delRes, err = GetDBConn().Collection(UserCollection).DeleteOne(
+			context.Background(),
+			bson.M{
+				ObjectID: userId,
+			})
+		if err == nil || (delRes != nil && delRes.DeletedCount == 0) {
+			reason := fmt.Sprintf("error while rollbacking deleting user %s: %s", userId, err)
+			GetLogger().Println(reason)
+			return
+		}
 	}
-	//updateRes, err := GetDBConn().Collection(UserCollection).UpdateOne(
-	//context.Background(),
-	//bson.NewDocument(
-	//	bson.EC.String(ObjectID, userId),
-	//),
-	//bson.NewDocument(
-	//	bson.EC.String(InvitesDataField, invitesDataId),
-	//),
-	//)
-	//if err != nil || updateRes.ModifiedCount != 1 {
-	//	reason := fmt.Sprintf("error while setting up invites data for user%s: %s", userId, err)
-	//	GetLogger().Println(reason)
-	//	err = errors.New(reason)
-	//}
+	updateRes, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		bson.M{
+			ObjectID: userId,
+		},
+		bson.M{
+			InvitesDataField: invitesDataId,
+		})
+	if err != nil || updateRes.ModifiedCount != 1 {
+		reason := fmt.Sprintf("error while setting up invites data for user%s: %s", userId, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	}
 	return
 }
 
 func GetUser(email string) (user *User, err error) {
-	//collection := GetDBConn().Collection(UserCollection)
+	collection := GetDBConn().Collection(UserCollection)
 	user = &User{}
-	//err = collection.FindOne(
-	//	context.Background(),
-	//	bson.NewDocument(
-	//		bson.EC.String(UserEmailField, email),
-	//	),
-	//).Decode(user)
+	err = collection.FindOne(
+		context.Background(),
+		bson.M{
+			UserEmailField: email,
+		}).Decode(user)
 	if err == mongo.ErrNoDocuments {
 		reason := fmt.Sprintf("no user found with email: %s", email)
 		GetLogger().Println(reason)
@@ -125,29 +123,24 @@ func (user *User) LoginUser(password string) (err error) {
 		return
 	}
 
-	//userFilter := bson.NewDocument(
-	//	bson.EC.String(UserEmailField, user.Email),
-	//)
-	//userData := bson.NewDocument(
-	//	bson.EC.SubDocumentFromElements(MongoSetOperator,
-	//		bson.EC.Boolean(UserLoggedIn, true)),
-	//)
-	//result, err := GetDBConn().Collection(UserCollection).UpdateOne(
-	//	context.Background(),
-	//	userFilter,
-	//	userData,
-	//)
-	//if err != nil {
-	//	reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
-	//	GetLogger().Println(reason)
-	//	err = errors.New(reason)
-	//	return
-	//} else if result.ModifiedCount != 1 {
-	//	reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
-	//	GetLogger().Println(reason)
-	//	err = errors.New(reason)
-	//	return
-	//}
+	userFilter := bson.M{UserEmailField: user.Email}
+	userData := bson.M{UserLoggedIn: true,}
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		userFilter,
+		userData,
+	)
+	if err != nil {
+		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	}
 
 	user.Password = fetchDBUser.Password
 	user.FirstName = fetchDBUser.FirstName
@@ -172,132 +165,120 @@ func (user *User) ExistingUser() (exists bool) {
 }
 
 func (user *User) UpdatePassword(newEncryptedPassword string) (err error) {
-	//result, err := GetDBConn().Collection(UserCollection).UpdateOne(
-	//	context.Background(),
-	//	bson.NewDocument(
-	//		bson.EC.String(UserEmailField, user.Email),
-	//	),
-	//	bson.NewDocument(
-	//		bson.EC.SubDocumentFromElements(MongoSetOperator,
-	//			bson.EC.String(UserPasswordField, newEncryptedPassword),
-	//		),
-	//	),
-	//)
-	//if err != nil {
-	//	reason := fmt.Sprintf("password update failed for user %s: %s", user.Email, err)
-	//	GetLogger().Println(reason)
-	//	err = errors.New(reason)
-	//} else {
-	//	reason := fmt.Sprintf("password update successful for user %s: %+v", user.Email, result)
-	//	GetLogger().Println(reason)
-	//}
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		bson.M{
+			UserEmailField: user.Email,
+		},
+		bson.M{
+			UserPasswordField: newEncryptedPassword,
+		})
+	if err != nil {
+		reason := fmt.Sprintf("password update failed for user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	} else {
+		reason := fmt.Sprintf("password update successful for user %s: %+v", user.Email, result)
+		GetLogger().Println(reason)
+	}
 	return
 }
 
 func (user *User) UpdateName(firstName, lastName string) (err error) {
-	//var updatedDoc *bson.Document
-	//if firstName != "" && lastName != "" {
-	//	updatedDoc = bson.NewDocument(
-	//		bson.EC.SubDocumentFromElements(MongoSetOperator,
-	//			bson.EC.String(UserFirstNameField, firstName),
-	//			bson.EC.String(UserLastNameField, lastName),
-	//		),
-	//	)
-	//} else if firstName != "" {
-	//	updatedDoc = bson.NewDocument(
-	//		bson.EC.SubDocumentFromElements(MongoSetOperator,
-	//			bson.EC.String(UserFirstNameField, firstName),
-	//		),
-	//	)
-	//} else if lastName != "" {
-	//	updatedDoc = bson.NewDocument(
-	//		bson.EC.SubDocumentFromElements(MongoSetOperator,
-	//			bson.EC.String(UserLastNameField, lastName),
-	//		),
-	//	)
-	//} else { // nothing to update
-	//	reason := "nothing to update as both firstName and lastName are blank"
-	//	GetLogger().Println(reason)
-	//	return
-	//}
-	//currentDocFilter := bson.NewDocument(
-	//	bson.EC.String(UserEmailField, user.Email),
-	//)
-	//result, err := GetDBConn().Collection(UserCollection).UpdateOne(
-	//	context.Background(),
-	//	currentDocFilter,
-	//	updatedDoc,
-	//)
-	//if err != nil {
-	//	reason := fmt.Sprintf("name update failed for user %s: %s", user.Email, err)
-	//	GetLogger().Println(reason)
-	//	err = errors.New(reason)
-	//} else {
-	//	reason := fmt.Sprintf("name update successful for user %s: %+v", user.Email, result)
-	//	GetLogger().Println(reason)
-	//}
+	var updatedDoc bson.M
+	if firstName != "" && lastName != "" {
+		updatedDoc = bson.M{
+			UserFirstNameField: firstName,
+			UserLastNameField:  lastName,
+		}
+	} else if firstName != "" {
+		updatedDoc = bson.M{
+			UserFirstNameField: firstName,
+		}
+	} else if lastName != "" {
+		updatedDoc = bson.M{
+			UserLastNameField: lastName,
+		}
+	} else { // nothing to update
+		reason := "nothing to update as both firstName and lastName are blank"
+		GetLogger().Println(reason)
+		return
+	}
+	currentDocFilter := bson.M{UserEmailField: user.Email}
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		currentDocFilter,
+		updatedDoc,
+	)
+	if err != nil {
+		reason := fmt.Sprintf("name update failed for user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	} else {
+		reason := fmt.Sprintf("name update successful for user %s: %+v", user.Email, result)
+		GetLogger().Println(reason)
+	}
 	return
 }
 
 func (user *User) SeeOnlineFriends() (onlineFriends []string, err error) {
-	//fetchedUser := &User{}
-	//GetDBConn().Collection(UserCollection).FindOne(
-	//	context.Background(),
-	//	bson.NewDocument(
-	//		bson.EC.String(UserEmailField, user.Email),
-	//	),
-	//).Decode(fetchedUser)
-	//invitesData, err := GetUserInvitesData(fetchedUser.InvitesDataId)
-	//if err != nil {
-	//	return
-	//}
-	//friendEmails, err := GetAcceptedInvitations(user.Id.(string))
-	//if err != nil {
-	//	reason := fmt.Sprintf("error while fetching user %s accepted invitations: %s", user.Id, err)
-	//}
-	//onlineFriends = make([]string, 5)
-	//for _, acceptedInvite := range friendEmails {
-	//	friend := &User{}
-	//	if acceptedInvite.Sender != user.Id {
-	//		GetDBConn().Collection(UserCollection).FindOne(
-	//			context.Background(),
-	//			bson.NewDocument(
-	//				bson.EC.String(UserEmailField, acceptedInvite.Sender),
-	//				bson.EC.Boolean(UserLoggedIn, true),
-	//			),
-	//		).Decode(friend)
-	//	}
-	//	if friend.Password != "" { // a user is found
-	//		onlineFriends = append(onlineFriends, fmt.Sprintf("%s %s: %s", friend.FirstName, friend.LastName, friendEmail))
-	//	}
-	//}
+	fetchedUser := &User{}
+	GetDBConn().Collection(UserCollection).FindOne(
+		context.Background(),
+		bson.M{
+			UserEmailField: user.Email,
+		}).Decode(fetchedUser)
+	_, err = GetUserInvitesData(fetchedUser.InvitesDataId)
+	if err != nil {
+		return
+	}
+	friendEmails, err := GetAcceptedInvitations(user.Id.(string))
+	if err != nil {
+		reason := fmt.Sprintf("error while fetching user %s accepted invitations: %s", user.Id, err)
+		GetLogger().Print(reason)
+	}
+	onlineFriends = make([]string, 5)
+	for _, acceptedInvite := range friendEmails {
+		friend := &User{}
+		if acceptedInvite.Sender != user.Id {
+			GetDBConn().Collection(UserCollection).FindOne(
+				context.Background(),
+				bson.M{
+					UserEmailField: acceptedInvite.Sender,
+					UserLoggedIn:   true,
+				}).Decode(friend)
+		}
+		if friend.Password != "" { // a user is found
+			onlineFriends = append(onlineFriends, fmt.Sprintf("%s %s: %s", friend.FirstName, friend.LastName,
+				friend.Email))
+		}
+	}
 	return
 }
 
 func (user *User) Logout() (err error) {
-	//userFilter := bson.NewDocument(
-	//	bson.EC.String(UserEmailField, user.Email),
-	//)
-	//userData := bson.NewDocument(
-	//	bson.EC.SubDocumentFromElements(MongoSetOperator,
-	//		bson.EC.Boolean(UserLoggedIn, false)),
-	//)
-	//result, err := GetDBConn().Collection(UserCollection).UpdateOne(
-	//	context.Background(),
-	//	userFilter,
-	//	userData,
-	//)
-	//if err != nil {
-	//	reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
-	//	GetLogger().Println(reason)
-	//	err = errors.New(reason)
-	//	return
-	//} else if result.ModifiedCount != 1 {
-	//	reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
-	//	GetLogger().Println(reason)
-	//	err = errors.New(reason)
-	//	return
-	//}
+	userFilter := bson.M{
+		UserEmailField: user.Email,
+	}
+	userData := bson.M{
+		UserLoggedIn: false,
+	}
+	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+		context.Background(),
+		userFilter,
+		userData,
+	)
+	if err != nil {
+		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+		return
+	}
 	return
 }
 
