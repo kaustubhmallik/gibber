@@ -533,15 +533,15 @@ func (c *Client) ChangePassword() {
 		if c.Err != nil {
 			continue
 		}
-		if GetSHA512Encrypted(currPassword) != c.Password {
-			reason := fmt.Sprintf("user %s entered incorrect password: %s", c.Email, c.Err)
-			GetLogger().Println(reason)
-			if c.Err.Error() == PasswordMismatch {
-				c.SendMessage(PasswordMismatch, true)
-			} else {
-				c.SendMessage(ServerError, true)
-			}
-			c.Err = errors.New(reason)
+		if err := MatchHashAndPlainText(c.Password, currPassword); err != nil {
+			c.Err = fmt.Errorf("user %s entered incorrect password: %s", c.Email, err)
+			GetLogger().Println(c.Err)
+			//if c.Err.Error() == PasswordMismatch {
+			//	c.SendMessage(PasswordMismatch, true)
+			//} else {
+			//	c.SendMessage(ServerError, true)
+			//}
+			//c.Err = errors.New(reason)
 			continue
 		}
 		break
@@ -559,14 +559,14 @@ func (c *Client) ChangePassword() {
 			c.SendMessage(ShortPassword, true)
 			continue
 		}
-		encryptedPassword := GetSHA512Encrypted(newPassword)
-		if encryptedPassword == c.Password {
-			reason := "New Password is same as current. Please select a different one."
-			GetLogger().Println(reason)
-			c.SendMessage(reason, true)
-			c.Err = errors.New(reason)
-			continue
-		}
+		//encryptedPassword := GetSHA512Encrypted(newPassword)
+		//if err MatchHashAndPlainText(c.Password, newPassword) {
+		//	reason := "New Password is same as current. Please select a different one."
+		//	GetLogger().Println(reason)
+		//	c.SendMessage(reason, true)
+		//	c.Err = errors.New(reason)
+		//	continue
+		//}
 		confirmNewPassword := c.SendAndReceiveMsg("\nConfirm your new password: ", false)
 		if c.Err != nil {
 			continue
@@ -578,7 +578,8 @@ func (c *Client) ChangePassword() {
 			c.Err = errors.New(reason)
 			continue
 		}
-		err := c.User.UpdatePassword(encryptedPassword)
+		passwordHash := GenerateHash(newPassword)
+		err := c.User.UpdatePassword(passwordHash)
 		if err != nil {
 			c.Err = err
 			c.SendMessage("Password update failed. Please try again.\n", true)
