@@ -44,7 +44,7 @@ func CreateUser(user *User) (userId interface{}, err error) {
 		err = errors.New(reason)
 		return
 	}
-	user.Password = GetSHA512Encrypted(user.Password)
+	user.Password = GenerateHash(user.Password)
 	user.LoggedIn = true // as user is just created, he becomes online, until he quits the session
 	userMap := GetMap(user)
 	userMap["last_login"] = time.Now().UTC()
@@ -131,10 +131,11 @@ func (user *User) LoginUser(password string) (err error) {
 		err = errors.New(reason)
 		return
 	}
-	if fetchDBUser.Password != GetSHA512Encrypted(password) {
-		reason := PasswordMismatch
-		GetLogger().Println(reason)
-		err = errors.New(reason) // TODO: May be we can create a new collection just to store credential and other auth related data
+	err = MatchHashAndPlainText(fetchDBUser.Password, password)
+	if err != nil {
+		//reason := PasswordMismatch
+		GetLogger().Print(err)
+		//err = errors.New(reason) // TODO: May be we can create a new collection just to store credential and other auth related data
 		return
 	}
 

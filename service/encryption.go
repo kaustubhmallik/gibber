@@ -1,18 +1,14 @@
 package service
 
-//var sha512Hash hash.Hash
-//var initHash sync.Once
+import "golang.org/x/crypto/bcrypt"
 
-func initSHA512Hash() {
-
+// generates the hash of the given string, using given cost (salt is created automatically by bcrypt)
+func GenerateHash(content string) string {
+	hash, _ := bcrypt.GenerateFromPassword([]byte(content), 10) // TODO: ignoring error for now
+	return string(hash)
 }
 
-func GetSHA512Encrypted(content string) (hashedContent string) {
-	//initHash.Do(initSHA512Hash)
-	//sha512Hash := crypto.SHA512.New()
-	//sha512Hash.Write([]byte(content))
-	//hashedContent = string(sha512Hash.Sum(nil))
-	//sha512Hash.Reset() // resetting the hash builder otherwise it will keep appending to currently hashed data
-	hashedContent = content
-	return
+// returns nil on match, error otherwise
+func MatchHashAndPlainText(hash, plainText string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plainText))
 }
