@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
@@ -38,9 +39,13 @@ var initMongoConn sync.Once
 
 // initializes a new client, and set the target database handler
 func initMongoConnPool() {
-	//address := fmt.Sprintf("%s://%s:%s@%s:%s/%s", ConnScheme, MongoUser, MongoPwd, MongoHost,
-	//	MongoPort, MongoDatabase)
-	address := "mongodb://localhost:27017/gibber"
+	var address string
+	if MongoUser != "" {
+		address = fmt.Sprintf("%s://%s:%s@%s:%s/%s", ConnScheme, MongoUser, MongoPwd, MongoHost,
+			MongoPort, MongoDatabase)
+	} else {
+		address = fmt.Sprintf("%s://%s:%s/%s", ConnScheme, MongoHost, MongoPort, MongoDatabase)
+	}
 	opts := options.Client().ApplyURI(address)
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	client, err := mongo.Connect(ctx, opts)

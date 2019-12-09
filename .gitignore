@@ -30,3 +30,6 @@ gibber
 
 # generated files/data/logs
 generated
+
+# ENV configs
+gibber.env

@@ -24,23 +24,23 @@ const (
 
 // stores reference for all the invitations sent and received associated with a user
 type UserInvitesData struct {
-	ID        primitive.ObjectID `bson:"_id" json:"-"`
-	UserId    primitive.ObjectID `bson:"user_id" json:"user_id"`     // object ID of user
-	Sent      []Invite           `bson:"send" json:"send"`           // active sent request by user
-	Received  []Invite           `bson:"received" json:"received"`   // active received request by user
-	Accepted  []Invite           `bson:"accepted" json:"accepted"`   // accepted requests by user
-	Rejected  []Invite           `bson:"rejected" json:"rejected"`   // rejected requests by user
-	Cancelled []Invite           `bson:"cancelled" json:"cancelled"` // cancelled sent requests by user
+	ID        primitive.ObjectID   `bson:"_id" json:"-"`
+	UserID    primitive.ObjectID   `bson:"user_id" json:"user_id"`     // object ID of user
+	Sent      []primitive.ObjectID `bson:"sent" json:"sent"`           // active sent request by user
+	Received  []primitive.ObjectID `bson:"received" json:"received"`   // active received request by user
+	Accepted  []primitive.ObjectID `bson:"accepted" json:"accepted"`   // accepted requests by user
+	Rejected  []primitive.ObjectID `bson:"rejected" json:"rejected"`   // rejected requests by user
+	Cancelled []primitive.ObjectID `bson:"cancelled" json:"cancelled"` // cancelled sent requests by user
 }
 
-func CreateUserInvitesData(userId interface{}) (userInvitesDataId string, err error) {
+func CreateUserInvitesData(userId interface{}) (userInvitesDataId interface{}, err error) {
 	userInvitesData := &UserInvitesData{
-		UserId:    userId.(primitive.ObjectID),
-		Sent:      make([]Invite, 0),
-		Received:  make([]Invite, 0),
-		Accepted:  make([]Invite, 0),
-		Rejected:  make([]Invite, 0),
-		Cancelled: make([]Invite, 0),
+		UserID:    userId.(primitive.ObjectID),
+		Sent:      make([]primitive.ObjectID, 0),
+		Received:  make([]primitive.ObjectID, 0),
+		Accepted:  make([]primitive.ObjectID, 0),
+		Rejected:  make([]primitive.ObjectID, 0),
+		Cancelled: make([]primitive.ObjectID, 0),
 	}
 	userInvitesDataMap := GetMap(*userInvitesData)
 	userInvitesDataMap["user_id"] = userId.(primitive.ObjectID)
@@ -52,12 +52,12 @@ func CreateUserInvitesData(userId interface{}) (userInvitesDataId string, err er
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 	} else {
-		userInvitesDataId = fmt.Sprintf("%s", res.InsertedID)
+		userInvitesDataId = res.InsertedID
 	}
 	return
 }
 
-func GetUserInvitesData(userId string) (userInvitesData *UserInvitesData, err error) {
+func GetUserInvitesData(userId primitive.ObjectID) (userInvitesData *UserInvitesData, err error) {
 	userInvitesData = &UserInvitesData{}
 	err = MongoConn().Collection(InviteCollection).FindOne(
 		context.Background(),
@@ -72,7 +72,7 @@ func GetUserInvitesData(userId string) (userInvitesData *UserInvitesData, err er
 	return
 }
 
-func GetReceivedInvitations(userId string) (invites []Invite, err error) {
+func GetReceivedInvitations(userId primitive.ObjectID) (invites []primitive.ObjectID, err error) {
 	userInvitesData := &UserInvitesData{}
 	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
@@ -89,7 +89,7 @@ func GetReceivedInvitations(userId string) (invites []Invite, err error) {
 	return
 }
 
-func GetSentInvitations(userId string) (invites []Invite, err error) {
+func GetSentInvitations(userId primitive.ObjectID) (invites []primitive.ObjectID, err error) {
 	userInvitesData := &UserInvitesData{}
 	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
@@ -106,7 +106,7 @@ func GetSentInvitations(userId string) (invites []Invite, err error) {
 	return
 }
 
-func GetAcceptedInvitations(userEmail string) (invites []Invite, err error) {
+func GetAcceptedInvitations(userEmail string) (invites []primitive.ObjectID, err error) {
 	userInvitesData := &UserInvitesData{}
 	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
@@ -118,12 +118,12 @@ func GetAcceptedInvitations(userEmail string) (invites []Invite, err error) {
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 	} else {
-		invites = userInvitesData.Sent
+		invites = userInvitesData.Accepted
 	}
 	return
 }
 
-func GetRejectedInvitations(userId string) (invites []Invite, err error) {
+func GetRejectedInvitations(userId primitive.ObjectID) (invites []primitive.ObjectID, err error) {
 	userInvitesData := &UserInvitesData{}
 	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
@@ -135,7 +135,11 @@ func GetRejectedInvitations(userId string) (invites []Invite, err error) {
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 	} else {
-		invites = userInvitesData.Sent
+		invites = userInvitesData.Rejected
 	}
 	return
+}
+
+func (u *UserInvitesData) String() string {
+	return u.ID.String()
 }
