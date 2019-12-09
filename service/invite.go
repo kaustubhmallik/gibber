@@ -30,8 +30,8 @@ const (
 
 // invite is a single invitation initiated from a sender for a receiver
 type Invite struct {
-	Sender   string // sender User ObjectId
-	Receiver string // receiver User ObjectId
+	Sender   string // sender User Email
+	Receiver string // receiver User Email
 	State    string // active, accepted, rejected
 }
 
@@ -52,7 +52,7 @@ func CreateInvitation(senderUserId, receiverUserId string) (objectId string, err
 		State:    ActiveInvite,
 	}
 	inviteMap := MapLowercaseKeys(structs.Map(*invite))
-	res, err := GetDBConn().Collection(InviteCollection).InsertOne(context.Background(), inviteMap)
+	res, err := MongoConn().Collection(InviteCollection).InsertOne(context.Background(), inviteMap)
 	if err != nil {
 		reason := fmt.Sprintf("error while creating new user invite %#v: %s", inviteMap, err)
 		err = errors.New(reason)
@@ -65,14 +65,14 @@ func CreateInvitation(senderUserId, receiverUserId string) (objectId string, err
 
 }
 
-func GetInvitation(inviteId string) (invite *Invite, err error) {
+func GetInvitation(inviteID string) (invite *Invite, err error) {
 	invite = &Invite{}
-	err = GetDBConn().Collection(InviteCollection).FindOne(
+	err = MongoConn().Collection(InviteCollection).FindOne(
 		context.Background(),
-		bson.M{UserIdField: inviteId},
+		bson.M{UserIdField: inviteID},
 	).Decode(invite)
 	if err != nil {
-		reason := fmt.Sprintf("error while fetching invites data for inviteId %s: %s", inviteId, err)
+		reason := fmt.Sprintf("error while fetching invites data for inviteID %s: %s", inviteID, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 	}
@@ -85,7 +85,7 @@ func GetInvitation(inviteId string) (invite *Invite, err error) {
 func AlreadyConnected(senderUserId, receiverUserId string) (err error) {
 	// check if the user doesn't have an active sent invitation to invitedUser
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	count, err := GetDBConn().Collection(InviteCollection).CountDocuments(
+	count, err := MongoConn().Collection(InviteCollection).CountDocuments(
 		ctx,
 		bson.M{
 			ObjectID:         senderUserId,
@@ -107,7 +107,7 @@ func AlreadyConnected(senderUserId, receiverUserId string) (err error) {
 
 	//check if the user doesn't have an active received invitation to invitedUser
 	ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
-	count, err = GetDBConn().Collection(InviteCollection).CountDocuments(
+	count, err = MongoConn().Collection(InviteCollection).CountDocuments(
 		ctx,
 		bson.M{
 			ObjectID:             senderUserId,
@@ -128,7 +128,7 @@ func AlreadyConnected(senderUserId, receiverUserId string) (err error) {
 
 	//check if the user doesn't have an accepted invitation from invitedUser
 	ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
-	count, err = GetDBConn().Collection(InviteCollection).CountDocuments(
+	count, err = MongoConn().Collection(InviteCollection).CountDocuments(
 		ctx,
 		bson.M{
 			ObjectID:             senderUserId,
@@ -149,13 +149,19 @@ func AlreadyConnected(senderUserId, receiverUserId string) (err error) {
 
 func SendInvitation(senderUserId, invitationId string) (err error) {
 	// add an invite to the sent user's invites array
-	result, err := GetDBConn().Collection(UserInvitesCollection).UpdateOne(
+	result, err := MongoConn().Collection(UserInvitesCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: senderUserId,
+		bson.D{
+			{
+				Key:   ObjectID,
+				Value: senderUserId,
+			},
 		},
-		bson.M{
-			SentInvitesField: invitationId,
+		bson.D{
+			{
+				Key:   SentInvitesField,
+				Value: invitationId,
+			},
 		})
 	if err != nil {
 		reason := fmt.Sprintf("error while adding invitation %s into %s's active sent invitation: %s", invitationId,
@@ -174,13 +180,19 @@ func SendInvitation(senderUserId, invitationId string) (err error) {
 
 func CancelInvitation(senderUserId, invitationId string) (err error) {
 	// change the state of invitation from active to cancelled
-	result, err := GetDBConn().Collection(InviteCollection).UpdateOne(
+	result, err := MongoConn().Collection(InviteCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: invitationId,
+		bson.D{
+			{
+				Key:   ObjectID,
+				Value: invitationId,
+			},
 		},
-		bson.M{
-			InviteStateField: CancelledInvite,
+		bson.D{
+			{
+				Key:   InviteStateField,
+				Value: CancelledInvite,
+			},
 		})
 	if err != nil {
 		reason := fmt.Sprintf("error while changing invitation %s state to %s: %s", invitationId,
@@ -197,13 +209,19 @@ func CancelInvitation(senderUserId, invitationId string) (err error) {
 	}
 
 	// remove invite from the sent user's invites array
-	result, err = GetDBConn().Collection(UserInvitesCollection).UpdateOne(
+	result, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: senderUserId,
+		bson.D{
+			{
+				Key:   ObjectID,
+				Value: senderUserId,
+			},
 		},
-		bson.M{
-			SentInvitesField: invitationId,
+		bson.D{
+			{
+				Key:   SentInvitesField,
+				Value: invitationId,
+			},
 		})
 
 	if err != nil {
@@ -221,13 +239,19 @@ func CancelInvitation(senderUserId, invitationId string) (err error) {
 	}
 
 	// add invite to the user's cancelled invites array
-	result, err = GetDBConn().Collection(UserInvitesCollection).UpdateOne(
+	result, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: senderUserId,
+		bson.D{
+			{
+				Key:   ObjectID,
+				Value: senderUserId,
+			},
 		},
-		bson.M{
-			CancelledInvitesField: invitationId,
+		bson.D{
+			{
+				Key:   CancelledInvitesField,
+				Value: invitationId,
+			},
 		})
 	if err != nil {
 		reason := fmt.Sprintf("error while adding invitation %s into %s's cancelled invitation: %s", invitationId,
@@ -245,13 +269,19 @@ func CancelInvitation(senderUserId, invitationId string) (err error) {
 
 func ReceiveInvitation(receiverUserId, invitationId string) (err error) {
 	// add an invite to the receiver user's received invites array
-	result, err := GetDBConn().Collection(InviteCollection).UpdateOne(
+	result, err := MongoConn().Collection(InviteCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: receiverUserId,
+		bson.D{
+			{
+				Key:   ObjectID,
+				Value: receiverUserId,
+			},
 		},
-		bson.M{
-			ReceivedInvitesField: invitationId,
+		bson.D{
+			{
+				Key:   ReceivedInvitesField,
+				Value: invitationId,
+			},
 		})
 	if err != nil {
 		reason := fmt.Sprintf("error while adding invitation %s into %s's active received invitation: %s",
@@ -268,73 +298,91 @@ func ReceiveInvitation(receiverUserId, invitationId string) (err error) {
 	return
 }
 
-func AcceptInvitation(receiverUserId, invitationId string) (err error) {
+func AcceptInvitation(receiverUserID, invitationID string) (err error) {
 	// change the state of invitation from active to accepted
-	result, err := GetDBConn().Collection(InviteCollection).UpdateOne(
+	result, err := MongoConn().Collection(InviteCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: invitationId,
+		bson.D{
+			{
+				Key:   UserEmailField,
+				Value: invitationID,
+			},
 		},
-		bson.M{
-			InviteStateField: AcceptedInvite,
+		bson.D{
+			{
+				Key:   InviteStateField,
+				Value: AcceptedInvite,
+			},
 		},
 	)
 	if err != nil {
-		reason := fmt.Sprintf("error while changing invitation %s state to %s: %s", invitationId,
+		reason := fmt.Sprintf("error while changing invitation %s state to %s: %s", invitationID,
 			CancelledInvite, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while changing invitation %s  state to %s's : %s",
-			invitationId, CancelledInvite, err)
+			invitationID, CancelledInvite, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
 
 	// move the invite from receiver user's received invites to accepted invites
-	result, err = GetDBConn().Collection(UserInvitesCollection).UpdateOne(
+	result, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: receiverUserId,
+		bson.D{
+			{
+				Key:   ObjectID,
+				Value: receiverUserID,
+			},
 		},
-		bson.M{
-			AcceptedInvitesField: invitationId,
+		bson.D{
+			{
+				Key:   AcceptedInvitesField,
+				Value: invitationID,
+			},
 		},
 	)
 	if err != nil {
-		reason := fmt.Sprintf("error while adding %s into %s's active accepted invitation: %s", receiverUserId,
-			receiverUserId, err)
+		reason := fmt.Sprintf("error while adding %s into %s's active accepted invitation: %s", receiverUserID,
+			receiverUserID, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while adding %s into %s's received accepted invitation: %s",
-			receiverUserId, receiverUserId, err)
+			receiverUserID, receiverUserID, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
 
-	result, err = GetDBConn().Collection(UserInvitesCollection).UpdateOne(
+	result, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			UserEmailField: receiverUserId,
+		bson.D{
+			{
+				Key:   UserEmailField,
+				Value: receiverUserID,
+			},
 		},
-		bson.M{
-			ReceivedInvitesField: invitationId,
+		bson.D{
+			{
+				Key:   ReceivedInvitesField,
+				Value: invitationID,
+			},
 		},
 	)
 	if err != nil {
-		reason := fmt.Sprintf("error while removing %s from %s's received invitation: %s", receiverUserId,
-			receiverUserId, err)
+		reason := fmt.Sprintf("error while removing %s from %s's received invitation: %s", receiverUserID,
+			receiverUserID, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while removing %s from %s's received invitation: %s",
-			receiverUserId, receiverUserId, err)
+			receiverUserID, receiverUserID, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 		return
@@ -342,56 +390,68 @@ func AcceptInvitation(receiverUserId, invitationId string) (err error) {
 
 	// Changing the sender user's invitation data too
 
-	invitationData, err := GetInvitation(invitationId)
+	invitationData, err := GetInvitation(invitationID)
 	if err != nil {
-		reason := fmt.Sprintf("error while fetching invitation %s data: %s", invitationId, err)
+		reason := fmt.Sprintf("error while fetching invitation %s data: %s", invitationID, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
 
 	// move the invite from sender user's sent invites to accepted invites
-	result, err = GetDBConn().Collection(UserInvitesCollection).UpdateOne(
+	result, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: invitationData.Sender,
+		bson.D{
+			{
+				Key:   ObjectID,
+				Value: invitationData.Sender,
+			},
 		},
-		bson.M{
-			AcceptedInvitesField: invitationId,
+		bson.D{
+			{
+				Key:   AcceptedInvitesField,
+				Value: invitationID,
+			},
 		},
 	)
 	if err != nil {
-		reason := fmt.Sprintf("error while adding %s into %s's accepted invitation: %s", receiverUserId,
-			receiverUserId, err)
+		reason := fmt.Sprintf("error while adding %s into %s's accepted invitation: %s", receiverUserID,
+			receiverUserID, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while adding %s into %s's accepted invitation: %s",
-			receiverUserId, receiverUserId, err)
+			receiverUserID, receiverUserID, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
 
-	result, err = GetDBConn().Collection(UserInvitesCollection).UpdateOne(
+	result, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: invitationData.Sender,
+		bson.D{
+			{
+				Key:   ObjectID,
+				Value: invitationData.Sender,
+			},
 		},
-		bson.M{
-			SentInvitesField: invitationId,
+		bson.D{
+			{
+				Key:   SentInvitesField,
+				Value: invitationID,
+			},
 		},
 	)
 	if err != nil {
-		reason := fmt.Sprintf("error while removing %s from %s's sent invitation: %s", receiverUserId,
-			receiverUserId, err)
+		reason := fmt.Sprintf("error while removing %s from %s's sent invitation: %s", receiverUserID,
+			receiverUserID, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while removing %s from %s's sent invitation: %s",
-			receiverUserId, receiverUserId, err)
+			receiverUserID, receiverUserID, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 		return
@@ -401,13 +461,19 @@ func AcceptInvitation(receiverUserId, invitationId string) (err error) {
 
 func RejectInvitation(receiverUserId, invitationId string) (err error) {
 	// change the state of invitation from active to accepted
-	result, err := GetDBConn().Collection(InviteCollection).UpdateOne(
+	result, err := MongoConn().Collection(InviteCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: invitationId,
+		bson.D{
+			{
+				Key:   ObjectID,
+				Value: invitationId,
+			},
 		},
-		bson.M{
-			InviteStateField: RejectedInvite,
+		bson.D{
+			{
+				Key:   InviteStateField,
+				Value: RejectedInvite,
+			},
 		},
 	)
 	if err != nil {
@@ -425,13 +491,19 @@ func RejectInvitation(receiverUserId, invitationId string) (err error) {
 	}
 
 	// move the invite from receiver user's received invites to rejected invites
-	result, err = GetDBConn().Collection(UserInvitesCollection).UpdateOne(
+	result, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: receiverUserId,
+		bson.D{
+			{
+				Key:   ObjectID,
+				Value: receiverUserId,
+			},
 		},
-		bson.M{
-			RejectedInvitesField: invitationId,
+		bson.D{
+			{
+				Key:   RejectedInvitesField,
+				Value: invitationId,
+			},
 		},
 	)
 	if err != nil {
@@ -448,13 +520,19 @@ func RejectInvitation(receiverUserId, invitationId string) (err error) {
 		return
 	}
 
-	result, err = GetDBConn().Collection(UserInvitesCollection).UpdateOne(
+	result, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			UserEmailField: receiverUserId,
+		bson.D{
+			{
+				Key:   UserEmailField,
+				Value: receiverUserId,
+			},
 		},
-		bson.M{
-			ReceivedInvitesField: invitationId,
+		bson.D{
+			{
+				Key:   ReceivedInvitesField,
+				Value: invitationId,
+			},
 		},
 	)
 	if err != nil {
@@ -481,13 +559,19 @@ func RejectInvitation(receiverUserId, invitationId string) (err error) {
 	}
 
 	// move the invite from sender user's sent invites to accepted invites
-	result, err = GetDBConn().Collection(UserInvitesCollection).UpdateOne(
+	result, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: invitationData.Sender,
+		bson.D{
+			{
+				Key:   ObjectID,
+				Value: invitationData.Sender,
+			},
 		},
-		bson.M{
-			RejectedInvitesField: invitationId,
+		bson.D{
+			{
+				Key:   RejectedInvitesField,
+				Value: invitationId,
+			},
 		},
 	)
 	if err != nil {
@@ -504,13 +588,19 @@ func RejectInvitation(receiverUserId, invitationId string) (err error) {
 		return
 	}
 
-	result, err = GetDBConn().Collection(UserInvitesCollection).UpdateOne(
+	result, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: invitationData.Sender,
+		bson.D{
+			{
+				Key:   ObjectID,
+				Value: invitationData.Sender,
+			},
 		},
-		bson.M{
-			SentInvitesField: invitationId,
+		bson.D{
+			{
+				Key:   SentInvitesField,
+				Value: invitationId,
+			},
 		},
 	)
 	if err != nil {

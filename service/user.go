@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/fatih/structs"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"regexp"
 	"time"
@@ -14,28 +14,29 @@ import (
 // user document collection name and fields
 const (
 	UserCollection     = "users"
-	UserFirstNameField = "firstname"
-	UserLastNameField  = "lastname"
+	UserFirstNameField = "first_name"
+	UserLastNameField  = "last_name"
 	UserEmailField     = "email"
-	UserLoggedIn       = "loggedin"
+	UserLoggedIn       = "logged_in"
 	UserPasswordField  = "password"
-	InvitesDataField   = "invitesdataid"
+	InvitesDataField   = "invites_data_id"
 )
 
 const ValidEmailRegex = `^[\w\.=-]+@[\w\.-]+\.[\w]{2,3}$`
 
 // User details
 type User struct {
-	Id                  interface{}
-	FirstName, LastName string
-	Email               string
-	Password            string // hashed
-	LastLogin           time.Time
-	LoggedIn            bool   // depicts if the user is currently logged in
-	InvitesDataId       string // object ID of invitesData
+	ID            primitive.ObjectID `bson:"_id" json:"-"`
+	FirstName     string             `bson:"first_name" json:"first_name"`
+	LastName      string             `bson:"last_name" json:"last_name"`
+	Email         string             `bson:"email" json:"email"`
+	Password      string             `bson:"password" json:"password"` // hashed
+	LastLogin     time.Time          `bson:"last_login" json:"last_login"`
+	LoggedIn      bool               `bson:"logged_in" json:"logged_in"`             // depicts if the user is currently logged in
+	InvitesDataId string             `bson:"invites_data_id" json:"invites_data_id"` // object ID of invitesData
 }
 
-func CreateUser(user *User) (userId string, err error) {
+func CreateUser(user *User) (userId interface{}, err error) {
 	var fetchUser *User
 	if user.ExistingUser() {
 		reason := fmt.Sprintf("user %#v already exist with email %s", fetchUser, user.Email) // passed email userId should be unique
@@ -45,22 +46,22 @@ func CreateUser(user *User) (userId string, err error) {
 	}
 	user.Password = GetSHA512Encrypted(user.Password)
 	user.LoggedIn = true // as user is just created, he becomes online, until he quits the session
-	userMap := MapLowercaseKeys(structs.Map(*user))
-	collection := GetDBConn().Collection(UserCollection)
+	userMap := GetMap(user)
+	collection := MongoConn().Collection(UserCollection)
 	res, err := collection.InsertOne(context.Background(), userMap)
 	if err != nil {
 		reason := fmt.Sprintf("error while creating new user %#v: %s", userMap, err)
 		err = errors.New(reason)
 		GetLogger().Printf(reason)
 	} else {
-		userId = res.InsertedID.(string) // TODO: Check if it is mostly string (expected), change the userId to string, and use reflection on InsertID
+		userId = res.InsertedID
 		GetLogger().Printf("user %#v successfully created with userId: %v", userMap, res)
 	}
 	var invitesDataId string
 	invitesDataId, err = CreateUserInvitesData(userId)
 	if err != nil {
 		var delRes *mongo.DeleteResult
-		delRes, err = GetDBConn().Collection(UserCollection).DeleteOne(
+		delRes, err = MongoConn().Collection(UserCollection).DeleteOne(
 			context.Background(),
 			bson.M{
 				ObjectID: userId,
@@ -71,14 +72,12 @@ func CreateUser(user *User) (userId string, err error) {
 			return
 		}
 	}
-	updateRes, err := GetDBConn().Collection(UserCollection).UpdateOne(
+	updateRes, err := MongoConn().Collection(UserCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			ObjectID: userId,
-		},
-		bson.M{
-			InvitesDataField: invitesDataId,
-		})
+		bson.M{ObjectID: userId},
+		bson.D{{
+			MongoSetOperator, bson.D{{InvitesDataField, invitesDataId}},
+		}})
 	if err != nil || updateRes.ModifiedCount != 1 {
 		reason := fmt.Sprintf("error while setting up invites data for user%s: %s", userId, err)
 		GetLogger().Println(reason)
@@ -88,13 +87,10 @@ func CreateUser(user *User) (userId string, err error) {
 }
 
 func GetUser(email string) (user *User, err error) {
-	collection := GetDBConn().Collection(UserCollection)
+	collection := MongoConn().Collection(UserCollection)
 	user = &User{}
-	err = collection.FindOne(
-		context.Background(),
-		bson.M{
-			UserEmailField: email,
-		}).Decode(user)
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	err = collection.FindOne(ctx, bson.M{UserEmailField: email}).Decode(user)
 	if err == mongo.ErrNoDocuments {
 		reason := fmt.Sprintf("no user found with email: %s", email)
 		GetLogger().Println(reason)
@@ -123,12 +119,25 @@ func (user *User) LoginUser(password string) (err error) {
 		return
 	}
 
-	userFilter := bson.M{UserEmailField: user.Email}
-	userData := bson.M{UserLoggedIn: true,}
-	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+	result, err := MongoConn().Collection(UserCollection).UpdateOne(
 		context.Background(),
-		userFilter,
-		userData,
+		bson.D{
+			{
+				Key:   UserEmailField,
+				Value: user.Email,
+			},
+		},
+		bson.D{
+			{
+				Key: MongoSetOperator,
+				Value: bson.D{
+					{
+						Key:   UserLoggedIn,
+						Value: true,
+					},
+				},
+			},
+		},
 	)
 	if err != nil {
 		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
@@ -165,13 +174,24 @@ func (user *User) ExistingUser() (exists bool) {
 }
 
 func (user *User) UpdatePassword(newEncryptedPassword string) (err error) {
-	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+	result, err := MongoConn().Collection(UserCollection).UpdateOne(
 		context.Background(),
-		bson.M{
-			UserEmailField: user.Email,
+		bson.D{
+			{
+				Key:   UserEmailField,
+				Value: user.Email,
+			},
 		},
-		bson.M{
-			UserPasswordField: newEncryptedPassword,
+		bson.D{
+			{
+				Key: MongoSetOperator,
+				Value: bson.D{
+					{
+						Key:   UserPasswordField,
+						Value: newEncryptedPassword,
+					},
+				},
+			},
 		})
 	if err != nil {
 		reason := fmt.Sprintf("password update failed for user %s: %s", user.Email, err)
@@ -185,29 +205,45 @@ func (user *User) UpdatePassword(newEncryptedPassword string) (err error) {
 }
 
 func (user *User) UpdateName(firstName, lastName string) (err error) {
-	var updatedDoc bson.M
+	var updatedDoc bson.D
 	if firstName != "" && lastName != "" {
-		updatedDoc = bson.M{
-			UserFirstNameField: firstName,
-			UserLastNameField:  lastName,
+		updatedDoc = bson.D{
+			{
+				Key:   UserFirstNameField,
+				Value: firstName,
+			},
+			{
+				Key:   UserLastNameField,
+				Value: lastName,
+			},
 		}
 	} else if firstName != "" {
-		updatedDoc = bson.M{
-			UserFirstNameField: firstName,
+		updatedDoc = bson.D{
+			{
+				Key:   UserFirstNameField,
+				Value: firstName,
+			},
 		}
 	} else if lastName != "" {
-		updatedDoc = bson.M{
-			UserLastNameField: lastName,
+		updatedDoc = bson.D{
+			{
+				Key:   UserLastNameField,
+				Value: lastName,
+			},
 		}
 	} else { // nothing to update
 		reason := "nothing to update as both firstName and lastName are blank"
 		GetLogger().Println(reason)
 		return
 	}
-	currentDocFilter := bson.M{UserEmailField: user.Email}
-	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+	result, err := MongoConn().Collection(UserCollection).UpdateOne(
 		context.Background(),
-		currentDocFilter,
+		bson.D{
+			{
+				Key:   UserEmailField,
+				Value: user.Email,
+			},
+		},
 		updatedDoc,
 	)
 	if err != nil {
@@ -223,7 +259,7 @@ func (user *User) UpdateName(firstName, lastName string) (err error) {
 
 func (user *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 	fetchedUser := &User{}
-	GetDBConn().Collection(UserCollection).FindOne(
+	MongoConn().Collection(UserCollection).FindOne(
 		context.Background(),
 		bson.M{
 			UserEmailField: user.Email,
@@ -232,16 +268,16 @@ func (user *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 	if err != nil {
 		return
 	}
-	friendEmails, err := GetAcceptedInvitations(user.Id.(string))
+	friendEmails, err := GetAcceptedInvitations(user.Email)
 	if err != nil {
-		reason := fmt.Sprintf("error while fetching user %s accepted invitations: %s", user.Id, err)
+		reason := fmt.Sprintf("error while fetching user %s accepted invitations: %s", user.Email, err)
 		GetLogger().Print(reason)
 	}
 	onlineFriends = make([]string, 5)
 	for _, acceptedInvite := range friendEmails {
 		friend := &User{}
-		if acceptedInvite.Sender != user.Id {
-			GetDBConn().Collection(UserCollection).FindOne(
+		if acceptedInvite.Sender != user.Email {
+			MongoConn().Collection(UserCollection).FindOne(
 				context.Background(),
 				bson.M{
 					UserEmailField: acceptedInvite.Sender,
@@ -257,16 +293,19 @@ func (user *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 }
 
 func (user *User) Logout() (err error) {
-	userFilter := bson.M{
-		UserEmailField: user.Email,
-	}
-	userData := bson.M{
-		UserLoggedIn: false,
-	}
-	result, err := GetDBConn().Collection(UserCollection).UpdateOne(
+	result, err := MongoConn().Collection(UserCollection).UpdateOne(
 		context.Background(),
-		userFilter,
-		userData,
+		bson.D{
+			{
+				UserEmailField,
+				user.Email,
+			},
+		},
+		bson.D{
+			{
+				MongoSetOperator, bson.D{{UserLoggedIn, false}},
+			},
+		},
 	)
 	if err != nil {
 		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
@@ -282,8 +321,56 @@ func (user *User) Logout() (err error) {
 	return
 }
 
-func (u *User) SendInvitation(user *User) error {
-	return nil
+func (u *User) SendInvitation(recv *User) (err error) {
+	// TODO: Add mongo transaction
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	result, err := MongoConn().Collection(UserInvitesCollection).UpdateOne(
+		ctx,
+		bson.D{
+			{
+				UserIdField,
+				u.ID,
+			},
+		},
+		bson.D{
+			{
+				MongoPushOperator, bson.D{{SentInvitesField, recv.ID}},
+			},
+		},
+	)
+	if err != nil {
+		reason := fmt.Sprintf("sending invitation failed from %s to %s: %s", u.Email, recv.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
+		GetLogger().Println(reason)
+	}
+
+	ctx, _ = context.WithTimeout(context.Background(), 5*time.Second)
+	result, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
+		ctx,
+		bson.D{
+			{
+				UserIdField,
+				recv.ID,
+			},
+		},
+		bson.D{
+			{
+				MongoPushOperator, bson.D{{ReceivedInvitesField, u.ID}},
+			},
+		},
+	)
+	if err != nil {
+		reason := fmt.Sprintf("sending invitation failed from %s to %s: %s", u.Email, recv.Email, err)
+		GetLogger().Println(reason)
+		err = errors.New(reason)
+	} else if result.ModifiedCount != 1 {
+		reason := fmt.Sprintf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
+		GetLogger().Println(reason)
+	}
+	return
 }
 
 func (u *User) GetActiveReceivedInvitations() ([]Invite, error) {

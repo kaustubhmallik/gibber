@@ -35,7 +35,7 @@ func (c *Connection) SendMessage(msg string, newline bool) {
 		GetLogger().Printf(reason)
 		return
 	}
-	GetLogger().Println("write successful")
+	//GetLogger().Println("write successful")
 }
 
 // reads a single line from reader

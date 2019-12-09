@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go.mongodb.org/mongo-driver/mongo"
 	"strconv"
+	"strings"
 )
 
 // a client using the gibber app
@@ -350,14 +351,14 @@ func (c *Client) StarChat(friendsDetail string) {
 func (c *Client) SendInvitation() {
 	c.SendMessage(SendInvitationInfo, true)
 	if c.Err != nil {
-
+		// TODO: Handle error
 	}
 	for {
 		email := c.SendAndReceiveMsg(EmailSearchPrompt, false)
 		if c.Err != nil {
 			continue
 		}
-		if email == "q" {
+		if strings.ToLower(email) == "q" {
 			break
 		}
 		user, err := c.SeePublicProfile(email)
@@ -368,7 +369,7 @@ func (c *Client) SendInvitation() {
 		confirm := c.SendAndReceiveMsg("Confirm? (Y/n): ", false)
 		if c.Err != nil {
 		}
-		if confirm == "Y" || confirm == "y" || confirm == "" {
+		if strings.ToLower(confirm) == "y" || confirm == "" {
 			err = c.User.SendInvitation(user)
 		}
 	}

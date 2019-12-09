@@ -22,9 +22,13 @@ func initLogger() (err error) {
 		err = fmt.Errorf("getting project root path failed: %s", err)
 		return
 	}
-	logDir := projectRootPath + "internal/generated/"
-	if _, err := os.Stat(logDir); os.IsNotExist(err) {
-		os.Mkdir(logDir, 0755)
+	logDir := projectRootPath + "generated/"
+	if _, err = os.Stat(logDir); os.IsNotExist(err) {
+		err = os.Mkdir(logDir, 0755)
+		if err != nil {
+			err = fmt.Errorf("error creating log directory %s: %s", logDir, err)
+			return
+		}
 	}
 	txnLogFile := logDir + LogFileName
 	file, err := os.OpenFile(txnLogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)

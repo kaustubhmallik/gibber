@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
@@ -34,14 +33,15 @@ var MongoPwd = os.Getenv("GIBBER_MONGO_PWD")
 var MongoDatabase = os.Getenv("GIBBER_MONGO_DB")
 
 // instead of a generic client, return the target DB handler, to avoid selecting it again and again in each query
-var dbConn *mongo.Database
-var connOnce sync.Once
+var mongoConn *mongo.Database
+var initMongoConn sync.Once
 
 // initializes a new client, and set the target database handler
-func createConnectionPool() {
-	address := fmt.Sprintf("%s://%s:%s@%s:%s/%s", ConnScheme, MongoUser, MongoPwd, MongoHost,
-		MongoPort, MongoDatabase)
-	opts := options.Client().ApplyURI("mongodb://localhost:27017")
+func initMongoConnPool() {
+	//address := fmt.Sprintf("%s://%s:%s@%s:%s/%s", ConnScheme, MongoUser, MongoPwd, MongoHost,
+	//	MongoPort, MongoDatabase)
+	address := "mongodb://localhost:27017/gibber"
+	opts := options.Client().ApplyURI(address)
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	client, err := mongo.Connect(ctx, opts)
 	if err != nil {
@@ -49,15 +49,12 @@ func createConnectionPool() {
 	} else {
 		GetLogger().Printf("mongo successfully connected on %s", address)
 	}
-	err = client.Connect(context.TODO())
-	if err != nil {
-		GetLogger().Fatalf("creating mongo context failed: %s", err)
-	}
-	dbConn = client.Database(MongoDatabase)
+	//mongoConn = client.Database(MongoDatabase)
+	mongoConn = client.Database("gibber")
 }
 
 // returns database handler instance of mongo for target database
-func GetDBConn() *mongo.Database {
-	connOnce.Do(createConnectionPool)
-	return dbConn
+func MongoConn() *mongo.Database {
+	initMongoConn.Do(initMongoConnPool)
+	return mongoConn
 }
