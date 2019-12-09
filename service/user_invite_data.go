@@ -1,11 +1,11 @@
-package server
+package service
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/fatih/structs"
-	"github.com/mongodb/mongo-go-driver/bson"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 const (
@@ -19,30 +19,32 @@ const (
 	AcceptedInvitesField  = "accepted"
 	RejectedInvitesField  = "rejected"
 	CancelledInvitesField = "cancelled"
-	UserIdField           = "userid"
+	UserIdField           = "user_id"
 )
 
 // stores reference for all the invitations sent and received associated with a user
 type UserInvitesData struct {
-	UserId    string   // object ID of user
-	Sent      []Invite // active sent request by user
-	Received  []Invite // active received request by user
-	Accepted  []Invite // accepted requests by user
-	Rejected  []Invite // rejected requests by user
-	Cancelled []Invite // cancelled sent requests by user
+	ID        primitive.ObjectID `bson:"_id" json:"-"`
+	UserId    primitive.ObjectID `bson:"user_id" json:"user_id"`     // object ID of user
+	Sent      []Invite           `bson:"send" json:"send"`           // active sent request by user
+	Received  []Invite           `bson:"received" json:"received"`   // active received request by user
+	Accepted  []Invite           `bson:"accepted" json:"accepted"`   // accepted requests by user
+	Rejected  []Invite           `bson:"rejected" json:"rejected"`   // rejected requests by user
+	Cancelled []Invite           `bson:"cancelled" json:"cancelled"` // cancelled sent requests by user
 }
 
-func CreateUserInvitesData(userId string) (userInvitesDataId string, err error) {
+func CreateUserInvitesData(userId interface{}) (userInvitesDataId string, err error) {
 	userInvitesData := &UserInvitesData{
-		UserId:    userId,
+		UserId:    userId.(primitive.ObjectID),
 		Sent:      make([]Invite, 0),
 		Received:  make([]Invite, 0),
 		Accepted:  make([]Invite, 0),
 		Rejected:  make([]Invite, 0),
 		Cancelled: make([]Invite, 0),
 	}
-	userInvitesDataMap := MapLowercaseKeys(structs.Map(*userInvitesData))
-	res, err := GetDBConn().Collection(UserInvitesCollection).InsertOne(
+	userInvitesDataMap := GetMap(*userInvitesData)
+	userInvitesDataMap["user_id"] = userId.(primitive.ObjectID)
+	res, err := MongoConn().Collection(UserInvitesCollection).InsertOne(
 		context.Background(),
 		userInvitesDataMap)
 	if err != nil {
@@ -50,19 +52,18 @@ func CreateUserInvitesData(userId string) (userInvitesDataId string, err error) 
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 	} else {
-		userInvitesDataId = res.InsertedID.(string)
+		userInvitesDataId = fmt.Sprintf("%s", res.InsertedID)
 	}
 	return
 }
 
 func GetUserInvitesData(userId string) (userInvitesData *UserInvitesData, err error) {
 	userInvitesData = &UserInvitesData{}
-	err = GetDBConn().Collection(InviteCollection).FindOne(
+	err = MongoConn().Collection(InviteCollection).FindOne(
 		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(UserIdField, userId),
-		),
-	).Decode(userInvitesData)
+		bson.M{
+			UserIdField: userId,
+		}).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching user invites data for user %s: %s", userId, err)
 		GetLogger().Println(reason)
@@ -73,12 +74,11 @@ func GetUserInvitesData(userId string) (userInvitesData *UserInvitesData, err er
 
 func GetReceivedInvitations(userId string) (invites []Invite, err error) {
 	userInvitesData := &UserInvitesData{}
-	err = GetDBConn().Collection(UserInvitesCollection).FindOne(
+	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(ObjectID, userId),
-		),
-	).Decode(userInvitesData)
+		bson.M{
+			ObjectID: userId,
+		}).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userId, err)
 		GetLogger().Println(reason)
@@ -91,12 +91,11 @@ func GetReceivedInvitations(userId string) (invites []Invite, err error) {
 
 func GetSentInvitations(userId string) (invites []Invite, err error) {
 	userInvitesData := &UserInvitesData{}
-	err = GetDBConn().Collection(UserInvitesCollection).FindOne(
+	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(ObjectID, userId),
-		),
-	).Decode(userInvitesData)
+		bson.M{
+			ObjectID: userId,
+		}).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userId, err)
 		GetLogger().Println(reason)
@@ -107,16 +106,15 @@ func GetSentInvitations(userId string) (invites []Invite, err error) {
 	return
 }
 
-func GetAcceptedInvitations(userId string) (invites []Invite, err error) {
+func GetAcceptedInvitations(userEmail string) (invites []Invite, err error) {
 	userInvitesData := &UserInvitesData{}
-	err = GetDBConn().Collection(UserInvitesCollection).FindOne(
+	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(ObjectID, userId),
-		),
-	).Decode(userInvitesData)
+		bson.M{
+			UserEmailField: userEmail,
+		}).Decode(userInvitesData)
 	if err != nil {
-		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userId, err)
+		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userEmail, err)
 		GetLogger().Println(reason)
 		err = errors.New(reason)
 	} else {
@@ -127,12 +125,11 @@ func GetAcceptedInvitations(userId string) (invites []Invite, err error) {
 
 func GetRejectedInvitations(userId string) (invites []Invite, err error) {
 	userInvitesData := &UserInvitesData{}
-	err = GetDBConn().Collection(UserInvitesCollection).FindOne(
+	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
-		bson.NewDocument(
-			bson.EC.String(ObjectID, userId),
-		),
-	).Decode(userInvitesData)
+		bson.M{
+			ObjectID: userId,
+		}).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userId, err)
 		GetLogger().Println(reason)

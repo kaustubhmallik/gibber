@@ -1,10 +1,11 @@
-package server
+package service
 
 import (
+	"errors"
 	"fmt"
-	"github.com/mongodb/mongo-go-driver/mongo"
-	"github.com/pkg/errors"
+	"go.mongodb.org/mongo-driver/mongo"
 	"strconv"
+	"strings"
 )
 
 // a client using the gibber app
@@ -40,7 +41,7 @@ const (
 	ServerError      = "Server processing error"
 	EmptyInput       = "Empty input\n"
 	ShortPassword    = "Password should be at 6 characters long"
-	ReadingError     = "Error while receiving data at server"
+	ReadingError     = "Error while receiving data at internal"
 	ExitingMsg       = "Exiting..."
 	InvalidInput     = "Invalid input\n"
 )
@@ -350,14 +351,14 @@ func (c *Client) StarChat(friendsDetail string) {
 func (c *Client) SendInvitation() {
 	c.SendMessage(SendInvitationInfo, true)
 	if c.Err != nil {
-
+		// TODO: Handle error
 	}
 	for {
 		email := c.SendAndReceiveMsg(EmailSearchPrompt, false)
 		if c.Err != nil {
 			continue
 		}
-		if email == "q" {
+		if strings.ToLower(email) == "q" {
 			break
 		}
 		user, err := c.SeePublicProfile(email)
@@ -368,7 +369,7 @@ func (c *Client) SendInvitation() {
 		confirm := c.SendAndReceiveMsg("Confirm? (Y/n): ", false)
 		if c.Err != nil {
 		}
-		if confirm == "Y" || confirm == "y" || confirm == "" {
+		if strings.ToLower(confirm) == "y" || confirm == "" {
 			err = c.User.SendInvitation(user)
 		}
 	}
@@ -436,7 +437,7 @@ func (c *Client) SeeActiveReceivedInvitations() {
 		return
 	}
 	// The user sees 1-based indexing, so reducing one from it
-	inviteeUser, err := GetUser(invites[invitationIdx-1]) // user who sent this invitation
+	inviteeUser, err := GetUser(invites[invitationIdx-1].Receiver) // user who sent this invitation
 	if err != nil {
 		reason := fmt.Sprintf("fetching invitee user %s details failed from client %s: %s", invites[invitationIdx],
 			(*c.Conn).RemoteAddr(), userInput)
@@ -498,7 +499,7 @@ func (c *Client) SeeActiveSentInvitations() {
 		return
 	}
 	// The user sees 1-based indexing, so reducing one from it
-	inviteeUser, err := GetUser(invites[invitationIdx-1]) // user who sent this invitation
+	inviteeUser, err := GetUser(invites[invitationIdx-1].Sender) // user who sent this invitation
 	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false)
 	if c.Err != nil {
 	}
@@ -680,7 +681,7 @@ func (c *Client) SeeOnlineFriends() {
 		return
 	}
 	// TODO: Check if valid friendIndex
-	c.StarChat(friends[friendIdx])
+	c.StarChat(friends[friendIdx].Email)
 }
 
 func (c *Client) SeeFriends() {

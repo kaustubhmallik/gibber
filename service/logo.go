@@ -1,8 +1,11 @@
-package server
+package service
 
-import "io/ioutil"
+import (
+	"fmt"
+	"io/ioutil"
+)
 
-const LogoFilePath = "server/logo.txt"
+const LogoFilePath = "service/logo.txt"
 
 func PrintLogo() {
 	filePath := ProjectRootPath() + LogoFilePath
@@ -11,4 +14,5 @@ func PrintLogo() {
 		GetLogger().Printf("reading logo file %s filed failed: %s", filePath, err)
 	}
 	GetLogger().Println(string(logoData[:]))
+	fmt.Println(string(logoData[:]))
 }
