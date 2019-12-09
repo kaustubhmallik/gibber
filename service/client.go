@@ -85,8 +85,6 @@ const (
 	InactiveReceivedInvitesChoice
 )
 
-const EmptyString = ""
-
 func (c *Client) ShowWelcomeMessage() {
 	c.SendMessage(WelcomeMsg, true)
 	if c.Err != nil {
@@ -141,7 +139,7 @@ func (c *Client) PromptForEmail() {
 
 // TODO: Add mongo client, and check from users collections whether the given email exists
 func (c *Client) ExistingUser() (exists bool) {
-	_, c.Err = GetUser(c.Email) // if user not exists, it will throw an error
+	_, c.Err = GetUserByEmail(c.Email) // if user not exists, it will throw an error
 	if c.Err == mongo.ErrNoDocuments {
 		c.Err = nil // resetting the error
 		return
@@ -289,7 +287,7 @@ func (c *Client) SendAndReceiveMsg(msgToSend string, newline bool) (msgRecvd str
 		c.Err = errors.New(reason)
 		return
 	}
-	if msgRecvd == EmptyString {
+	if msgRecvd == "" {
 		reason := fmt.Sprintf("empty string received from client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 		GetLogger().Println(reason)
 		c.SendMessage(EmptyInput, true)
@@ -368,7 +366,9 @@ func (c *Client) SendInvitation() {
 		c.SendMessage(fmt.Sprintf("Send invite to %s", email), false)
 		confirm := c.SendAndReceiveMsg("Confirm? (Y/n): ", false)
 		if c.Err != nil {
+			// TODO: handle error
 		}
+		// TODO: add a check for empty input to not displayed when it's a valid input
 		if strings.ToLower(confirm) == "y" || confirm == "" {
 			err = c.User.SendInvitation(user)
 		}
@@ -437,7 +437,7 @@ func (c *Client) SeeActiveReceivedInvitations() {
 		return
 	}
 	// The user sees 1-based indexing, so reducing one from it
-	inviteeUser, err := GetUser(invites[invitationIdx-1].Receiver) // user who sent this invitation
+	inviteeUser, err := GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
 	if err != nil {
 		reason := fmt.Sprintf("fetching invitee user %s details failed from client %s: %s", invites[invitationIdx],
 			(*c.Conn).RemoteAddr(), userInput)
@@ -486,7 +486,7 @@ func (c *Client) SeeActiveSentInvitations() {
 		c.Err = errors.New(reason)
 		return
 	}
-	if userInput == "b" || userInput == "B" {
+	if strings.ToLower(userInput) == "b" {
 		return
 	}
 	invitationIdx, err := strconv.Atoi(userInput)
@@ -499,11 +499,11 @@ func (c *Client) SeeActiveSentInvitations() {
 		return
 	}
 	// The user sees 1-based indexing, so reducing one from it
-	inviteeUser, err := GetUser(invites[invitationIdx-1].Sender) // user who sent this invitation
+	inviteeUser, err := GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
 	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false)
 	if c.Err != nil {
 	}
-	if confirm == "Y" || confirm == "y" || confirm == "" {
+	if strings.ToLower(confirm) == "y" || confirm == "" {
 		err = c.User.CancelInvitation(inviteeUser)
 		if err != nil {
 			c.SendMessage(fmt.Sprintf("\nCancelling invitation to %s failed\n", inviteeUser.Email), true)
@@ -636,7 +636,7 @@ func (c *Client) SeeSelfProfile() {
 
 // allow a client to see other person's basic detail before sending invitation
 func (c *Client) SeePublicProfile(email string) (user *User, err error) {
-	user, err = GetUser(email)
+	user, err = GetUserByEmail(email)
 	if err == mongo.ErrNoDocuments {
 		c.SendMessage(fmt.Sprintf("\nNo user found with given email %s", email), true)
 		if c.Err != nil {
