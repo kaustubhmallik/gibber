@@ -19,17 +19,17 @@ func StartServer() error {
 	if err != nil {
 		return WriteLogAndReturnError("error in starting listener on host %s and port %s: %s", Host, Port, err)
 	}
-	GetLogger().Printf("started TCP listener on %s", address)
+	Logger().Printf("started TCP listener on %s", address)
 	PrintLogo()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			if conn.RemoteAddr().String() != "" {
-				GetLogger().Printf("client %s => connection establishment failed", conn.RemoteAddr().String())
+				Logger().Printf("client %s => connection establishment failed", conn.RemoteAddr().String())
 			}
 			continue // some error occurred
 		}
-		GetLogger().Printf("client %s => connection established successfully", conn.RemoteAddr().String())
+		Logger().Printf("client %s => connection established successfully", conn.RemoteAddr().String())
 		go establishClientConnection(&conn)
 	}
 }
@@ -60,7 +60,7 @@ func establishClientConnection(conn *net.Conn) {
 }
 
 func closeClientConnection(conn *net.Conn) {
-	GetLogger().Printf("client %s => closing connection from internal", (*conn).RemoteAddr().String())
+	Logger().Printf("client %s => closing connection from internal", (*conn).RemoteAddr().String())
 	(*conn).Close()
 }
 
@@ -75,15 +75,15 @@ func closeClientConnection(conn *net.Conn) {
 //		}
 //		//WriteLog("client %s => writing message failed: %s", conn.RemoteAddr().String(), err)
 //		//WriteLog("client => writing message failed: %s", err)
-//		GetLogger().Printf("client %s => writing message failed: %s", (*conn).RemoteAddr().String(), err)
+//		Logger().Printf("client %s => writing message failed: %s", (*conn).RemoteAddr().String(), err)
 //	} else {
 //		//WriteLog("client %s => message read: %s", conn.RemoteAddr().String(), msg)
 //		//WriteLog("client => message read: %s", msg)
-//		GetLogger().Printf("client %s => message sent: %s", (*conn).RemoteAddr().String(), msg)
+//		Logger().Printf("client %s => message sent: %s", (*conn).RemoteAddr().String(), msg)
 //	}
 //	err = writer.Flush()
 //	if err != nil {
-//		GetLogger().Printf("client %s => write flush failed: %s", (*conn).RemoteAddr().String(), err)
+//		Logger().Printf("client %s => write flush failed: %s", (*conn).RemoteAddr().String(), err)
 //	}
 //
 //	// reading msg from client
@@ -91,16 +91,16 @@ func closeClientConnection(conn *net.Conn) {
 //	if err != nil {
 //		if err == io.EOF {
 //			if len(clientMsg) > 0 {
-//				GetLogger().Printf("client %s => message partially read: %s", (*conn).RemoteAddr().String(),
+//				Logger().Printf("client %s => message partially read: %s", (*conn).RemoteAddr().String(),
 //					clientMsg)
 //			} else { // connection is closed, net.OpError occurred
 //				// NOTE: An intentional EOF (Ctrl-D is considered as closing the connection similar to bash)
-//				GetLogger().Printf("client %s => connection closed from client", (*conn).RemoteAddr().String())
+//				Logger().Printf("client %s => connection closed from client", (*conn).RemoteAddr().String())
 //				return
 //			}
 //		}
 //	} else if len(clientMsg) > 0 { // some non-empty message
 //		// TODO: I think len() > 0 check can be remove, an else will suffice
-//		GetLogger().Printf("client %s => message read: %s", (*conn).RemoteAddr().String(), clientMsg)
+//		Logger().Printf("client %s => message read: %s", (*conn).RemoteAddr().String(), clientMsg)
 //	}
 //}

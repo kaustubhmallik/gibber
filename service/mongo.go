@@ -18,6 +18,7 @@ const (
 	MongoPushOperator     = "$push"
 	MongoAddToSetOperator = "$addToSet"
 	MongoPullOperator     = "$pull"
+	MongoUpsertOperator   = "upsert"
 )
 
 // common fields/attributes of documents in various collections
@@ -50,9 +51,9 @@ func initMongoConnPool() {
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	client, err := mongo.Connect(ctx, opts)
 	if err != nil {
-		GetLogger().Fatalf("create mongo connection on %s pool failed: %s", address, err)
+		Logger().Fatalf("create mongo connection on %s pool failed: %s", address, err)
 	} else {
-		GetLogger().Printf("mongo successfully connected on %s", address)
+		Logger().Printf("mongo successfully connected on %s", address)
 	}
 	//mongoConn = client.Database(MongoDatabase)
 	mongoConn = client.Database("gibber")

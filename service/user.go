@@ -7,6 +7,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"regexp"
 	"time"
 )
@@ -40,7 +41,7 @@ func CreateUser(user *User) (userId interface{}, err error) {
 	var fetchUser *User
 	if user.ExistingUser() {
 		reason := fmt.Sprintf("user %#v already exist with email %s", fetchUser, user.Email) // passed email userId should be unique
-		GetLogger().Printf(reason)
+		Logger().Printf(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -53,11 +54,11 @@ func CreateUser(user *User) (userId interface{}, err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while creating new user %#v: %s", userMap, err)
 		err = errors.New(reason)
-		GetLogger().Printf(reason)
+		Logger().Printf(reason)
 	} else {
 		userId = res.InsertedID
 		user.ID = res.InsertedID.(primitive.ObjectID)
-		GetLogger().Printf("user %#v successfully created with userId: %v", userMap, res)
+		Logger().Printf("user %#v successfully created with userId: %v", userMap, res)
 	}
 	var invitesId primitive.ObjectID
 	invitesDataId, err := CreateUserInvitesData(userId)
@@ -71,7 +72,7 @@ func CreateUser(user *User) (userId interface{}, err error) {
 			})
 		if err == nil || (delRes != nil && delRes.DeletedCount == 0) {
 			reason := fmt.Sprintf("error while rollbacking deleting user %s: %s", userId, err)
-			GetLogger().Println(reason)
+			Logger().Println(reason)
 			return
 		}
 	}
@@ -83,7 +84,7 @@ func CreateUser(user *User) (userId interface{}, err error) {
 		}})
 	if err != nil || updateRes.ModifiedCount != 1 {
 		reason := fmt.Sprintf("error while setting up invites data for user%s: %s", userId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	}
 	return
@@ -96,11 +97,11 @@ func GetUserByEmail(email string) (user *User, err error) {
 	err = collection.FindOne(ctx, bson.M{UserEmailField: email}).Decode(user)
 	if err == mongo.ErrNoDocuments {
 		reason := fmt.Sprintf("no user found with email: %s", email)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		// no changes in error so that it can be used to verify unique email ID before insertion
 	} else if err != nil {
 		reason := fmt.Sprintf("decoding(unmarshal) user fetch result for email %s failed: %s", email, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	}
 	return
@@ -117,7 +118,7 @@ func GetUserByID(objectID primitive.ObjectID) (user *User, err error) {
 		} else {
 			err = fmt.Errorf("decoding(unmarshal) user fetch result for email %s failed: %s", objectID.String(), err)
 		}
-		GetLogger().Println(err)
+		Logger().Println(err)
 	}
 	return
 }
@@ -127,14 +128,14 @@ func (user *User) LoginUser(password string) (err error) {
 	fetchDBUser, err := GetUserByEmail(user.Email)
 	if err != nil {
 		reason := fmt.Sprintf("authenticate user failed: %s", err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
 	err = MatchHashAndPlainText(fetchDBUser.Password, password)
 	if err != nil {
 		//reason := PasswordMismatch
-		GetLogger().Print(err)
+		Logger().Print(err)
 		//err = errors.New(reason) // TODO: May be we can create a new collection just to store credential and other auth related data
 		return
 	}
@@ -161,12 +162,12 @@ func (user *User) LoginUser(password string) (err error) {
 	)
 	if err != nil {
 		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.MatchedCount != 1 { // TODO: should we check for logging status to change
 		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -193,7 +194,7 @@ func (user *User) ExistingUser() (exists bool) {
 	}
 	if err != nil { // some other error occurred
 		reason := fmt.Sprintf("user email unique check failed: %s", err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -223,11 +224,11 @@ func (user *User) UpdatePassword(newEncryptedPassword string) (err error) {
 		})
 	if err != nil {
 		reason := fmt.Sprintf("password update failed for user %s: %s", user.Email, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	} else {
 		reason := fmt.Sprintf("password update successful for user %s: %+v", user.Email, result)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 	}
 	return
 }
@@ -261,7 +262,7 @@ func (user *User) UpdateName(firstName, lastName string) (err error) {
 		}
 	} else { // nothing to update
 		reason := "nothing to update as both firstName and lastName are blank"
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		return
 	}
 	result, err := MongoConn().Collection(UserCollection).UpdateOne(
@@ -276,11 +277,11 @@ func (user *User) UpdateName(firstName, lastName string) (err error) {
 	)
 	if err != nil {
 		reason := fmt.Sprintf("name update failed for user %s: %s", user.Email, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	} else {
 		reason := fmt.Sprintf("name update successful for user %s: %+v", user.Email, result)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 	}
 	return
 }
@@ -299,7 +300,7 @@ func (user *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 	//friendEmails, err := GetAcceptedInvitations(user.Email)
 	//if err != nil {
 	//	reason := fmt.Sprintf("error while fetching user %s accepted invitations: %s", user.Email, err)
-	//	GetLogger().Print(reason)
+	//	Logger().Print(reason)
 	//}
 	//onlineFriends = make([]string, 5)
 	//for _, acceptedInvite := range friendEmails {
@@ -337,12 +338,12 @@ func (user *User) Logout() (err error) {
 	)
 	if err != nil {
 		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("error while logging out user %s: %s", user.Email, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -368,11 +369,11 @@ func (u *User) SendInvitation(recv *User) (err error) {
 	)
 	if err != nil {
 		reason := fmt.Sprintf("sending invitation failed from %s to %s: %s", u.Email, recv.Email, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 	}
 
 	//ctx, _ = context.WithTimeout(context.Background(), 5*time.Second)
@@ -392,17 +393,102 @@ func (u *User) SendInvitation(recv *User) (err error) {
 	)
 	if err != nil {
 		reason := fmt.Sprintf("sending invitation failed from %s to %s: %s", u.Email, recv.Email, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 	}
 	return
 }
 
-func (u *User) GetActiveReceivedInvitations() (invites []primitive.ObjectID, err error) {
-	invitesData := UserInvitesData{}
+func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
+	// Delete the received request from u's invite data (THINK OF SOFT DELETE) - Done
+	// Delete the sent request from user's invites data (THINK OF SOFT DELETE) - Done
+	// Add user as u's friend
+	// Add u as user's
+
+	// TODO: Add mongo transaction
+	var res *mongo.UpdateResult
+	res, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
+		context.Background(),
+		bson.M{UserIdField: u.ID},
+		bson.D{
+			{MongoPullOperator, bson.D{{ReceivedInvitesField, userID}}},
+		})
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			err = fmt.Errorf("invite data not found for invite accepting user %s", u.ID.String())
+		} else {
+			err = fmt.Errorf("invite data fetch failed for invite accepting user %s: %s", u.ID.String(), err)
+		}
+		Logger().Print(err)
+		return
+	} else if res.ModifiedCount != 1 {
+		err = fmt.Errorf("invite data not updated for invite accepting user %s: %s", u.ID.String())
+		Logger().Print(err)
+		return
+	}
+
+	res, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
+		context.Background(),
+		bson.M{UserIdField: userID},
+		bson.D{
+			{MongoPullOperator, bson.D{{SentInvitesField, u.ID}}},
+		})
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			err = fmt.Errorf("invite data not found for invite sending user %s", u.ID.String())
+		} else {
+			err = fmt.Errorf("invite data fetch failed for invite sending user %s: %s", u.ID.String(), err)
+		}
+		Logger().Print(err)
+		return
+	} else if res.ModifiedCount != 1 {
+		err = fmt.Errorf("invite data not updated for invite sending user %s: %s", userID.String())
+		Logger().Print(err)
+		return
+	}
+
+	// using upsert: true to create the friends document if non-existent
+	res, err = MongoConn().Collection(FriendsCollection).UpdateOne(context.Background(),
+		bson.M{UserIdField: u.ID},
+		bson.D{
+			{MongoPushOperator, bson.D{{FriendsField, userID}}},
+		},
+		options.Update().SetUpsert(true))
+	if err != nil {
+		err = fmt.Errorf("error while adding %s as friend for %s: %s", userID.String(), u.ID.String(), err)
+		Logger().Print(err)
+		return
+	} else if res.ModifiedCount+res.UpsertedCount != 1 {
+		err = fmt.Errorf("document not created/updated to add %s as friend for %s: %s", userID.String(),
+			u.ID.String(), err)
+		return
+	}
+
+	// using upsert: true to create the friends document if non-existent
+	res, err = MongoConn().Collection(FriendsCollection).UpdateOne(context.Background(),
+		bson.M{UserIdField: userID},
+		bson.D{
+			{MongoPushOperator, bson.D{{FriendsField, u.ID}}},
+		},
+		options.Update().SetUpsert(true))
+	if err != nil {
+		err = fmt.Errorf("error while adding %s as friend for %s: %s", u.ID.String(), userID.String(), err)
+		Logger().Print(err)
+		return
+	} else if res.ModifiedCount+res.UpsertedCount != 1 {
+		err = fmt.Errorf("document not created/updated to add %s as friend for %s: %s", u.ID.String(),
+			userID.String(), err)
+		return
+	}
+
+	return
+}
+
+func (u *User) GetSentInvitations() (invites []primitive.ObjectID, err error) {
+	invitesData := UserInvites{}
 	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
 		bson.M{UserIdField: u.ID}).
@@ -413,19 +499,34 @@ func (u *User) GetActiveReceivedInvitations() (invites []primitive.ObjectID, err
 		} else {
 			err = fmt.Errorf("invite data fetch failed for user %s: %s", u.ID.String(), err)
 		}
-		GetLogger().Print(err)
+		Logger().Print(err)
+		return
+	}
+	invites = invitesData.Sent
+	return
+}
+
+func (u *User) GetReceivedInvitations() (invites []primitive.ObjectID, err error) {
+	invitesData := UserInvites{}
+	err = MongoConn().Collection(UserInvitesCollection).FindOne(
+		context.Background(),
+		bson.M{UserIdField: u.ID}).
+		Decode(&invitesData)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			err = fmt.Errorf("invite data not found for user %s", u.ID.String())
+		} else {
+			err = fmt.Errorf("invite data fetch failed for user %s: %s", u.ID.String(), err)
+		}
+		Logger().Print(err)
 		return
 	}
 	invites = invitesData.Received
 	return
 }
 
-func (u *User) AddFriend(user *User) error {
-	return nil
-}
-
-func (u *User) GetActiveSentInvitations() (invites []primitive.ObjectID, err error) {
-	invitesData := UserInvitesData{}
+func (u *User) GetCanceledSentInvitations() (invites []primitive.ObjectID, err error) {
+	invitesData := UserInvites{}
 	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
 		bson.M{UserIdField: u.ID}).
@@ -436,10 +537,48 @@ func (u *User) GetActiveSentInvitations() (invites []primitive.ObjectID, err err
 		} else {
 			err = fmt.Errorf("invite data fetch failed for user %s: %s", u.ID.String(), err)
 		}
-		GetLogger().Print(err)
+		Logger().Print(err)
 		return
 	}
-	invites = invitesData.Sent
+	invites = invitesData.Cancelled
+	return
+}
+
+func (u *User) GetAcceptedInvitations() (invites []primitive.ObjectID, err error) {
+	invitesData := UserInvites{}
+	err = MongoConn().Collection(UserInvitesCollection).FindOne(
+		context.Background(),
+		bson.M{UserIdField: u.ID}).
+		Decode(&invitesData)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			err = fmt.Errorf("invite data not found for user %s", u.ID.String())
+		} else {
+			err = fmt.Errorf("invite data fetch failed for user %s: %s", u.ID.String(), err)
+		}
+		Logger().Print(err)
+		return
+	}
+	invites = invitesData.Accepted
+	return
+}
+
+func (u *User) GetRejectedInvitations() (invites []primitive.ObjectID, err error) {
+	invitesData := UserInvites{}
+	err = MongoConn().Collection(UserInvitesCollection).FindOne(
+		context.Background(),
+		bson.M{UserIdField: u.ID}).
+		Decode(&invitesData)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			err = fmt.Errorf("invite data not found for user %s", u.ID.String())
+		} else {
+			err = fmt.Errorf("invite data fetch failed for user %s: %s", u.ID.String(), err)
+		}
+		Logger().Print(err)
+		return
+	}
+	invites = invitesData.Rejected
 	return
 }
 
@@ -447,8 +586,29 @@ func (u *User) CancelInvitation(user *User) error {
 	return nil
 }
 
-func (u *User) SeeFriends() ([]User, error) {
-	return nil, nil
+func (u *User) SeeFriends() (friends []primitive.ObjectID, err error) {
+	friendData := Friends{}
+	err = MongoConn().Collection(FriendsCollection).FindOne(
+		context.Background(),
+		bson.M{UserIdField: u.ID}).
+		Decode(&friendData)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			err = fmt.Errorf("friends data not found for user %s", u.ID.String())
+		} else {
+			err = fmt.Errorf("friends data fetch failed for user %s: %s", u.ID.String(), err)
+		}
+		Logger().Print(err)
+		return
+	}
+	friends = friendData.FriendIDs
+	return
+}
+
+// shows the basic details about a given user based on the object
+func UserProfile(userID primitive.ObjectID) string {
+	user, _ := GetUserByID(userID)
+	return fmt.Sprintf("%s %s : %s", user.FirstName, user.LastName, user.Email)
 }
 
 func (u *User) String() string {

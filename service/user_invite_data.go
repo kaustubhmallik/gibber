@@ -23,7 +23,7 @@ const (
 )
 
 // stores reference for all the invitations sent and received associated with a user
-type UserInvitesData struct {
+type UserInvites struct {
 	ID        primitive.ObjectID   `bson:"_id" json:"-"`
 	UserID    primitive.ObjectID   `bson:"user_id" json:"user_id"`     // object ID of user
 	Sent      []primitive.ObjectID `bson:"sent" json:"sent"`           // active sent request by user
@@ -34,7 +34,7 @@ type UserInvitesData struct {
 }
 
 func CreateUserInvitesData(userId interface{}) (userInvitesDataId interface{}, err error) {
-	userInvitesData := &UserInvitesData{
+	userInvites := &UserInvites{
 		UserID:    userId.(primitive.ObjectID),
 		Sent:      make([]primitive.ObjectID, 0),
 		Received:  make([]primitive.ObjectID, 0),
@@ -42,14 +42,14 @@ func CreateUserInvitesData(userId interface{}) (userInvitesDataId interface{}, e
 		Rejected:  make([]primitive.ObjectID, 0),
 		Cancelled: make([]primitive.ObjectID, 0),
 	}
-	userInvitesDataMap := GetMap(*userInvitesData)
+	userInvitesDataMap := GetMap(*userInvites)
 	userInvitesDataMap["user_id"] = userId.(primitive.ObjectID)
 	res, err := MongoConn().Collection(UserInvitesCollection).InsertOne(
 		context.Background(),
 		userInvitesDataMap)
 	if err != nil {
 		reason := fmt.Sprintf("error creating user %s invites data: %s", userId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	} else {
 		userInvitesDataId = res.InsertedID
@@ -57,8 +57,8 @@ func CreateUserInvitesData(userId interface{}) (userInvitesDataId interface{}, e
 	return
 }
 
-func GetUserInvitesData(userId primitive.ObjectID) (userInvitesData *UserInvitesData, err error) {
-	userInvitesData = &UserInvitesData{}
+func GetUserInvitesData(userId primitive.ObjectID) (userInvitesData *UserInvites, err error) {
+	userInvitesData = &UserInvites{}
 	err = MongoConn().Collection(InviteCollection).FindOne(
 		context.Background(),
 		bson.M{
@@ -66,14 +66,14 @@ func GetUserInvitesData(userId primitive.ObjectID) (userInvitesData *UserInvites
 		}).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching user invites data for user %s: %s", userId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	}
 	return
 }
 
 func GetReceivedInvitations(userId primitive.ObjectID) (invites []primitive.ObjectID, err error) {
-	userInvitesData := &UserInvitesData{}
+	userInvitesData := &UserInvites{}
 	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
 		bson.M{
@@ -81,7 +81,7 @@ func GetReceivedInvitations(userId primitive.ObjectID) (invites []primitive.Obje
 		}).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	} else {
 		invites = userInvitesData.Received
@@ -90,7 +90,7 @@ func GetReceivedInvitations(userId primitive.ObjectID) (invites []primitive.Obje
 }
 
 func GetSentInvitations(userId primitive.ObjectID) (invites []primitive.ObjectID, err error) {
-	userInvitesData := &UserInvitesData{}
+	userInvitesData := &UserInvites{}
 	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
 		bson.M{
@@ -98,7 +98,7 @@ func GetSentInvitations(userId primitive.ObjectID) (invites []primitive.ObjectID
 		}).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	} else {
 		invites = userInvitesData.Sent
@@ -107,7 +107,7 @@ func GetSentInvitations(userId primitive.ObjectID) (invites []primitive.ObjectID
 }
 
 func GetAcceptedInvitations(userEmail string) (invites []primitive.ObjectID, err error) {
-	userInvitesData := &UserInvitesData{}
+	userInvitesData := &UserInvites{}
 	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
 		bson.M{
@@ -115,7 +115,7 @@ func GetAcceptedInvitations(userEmail string) (invites []primitive.ObjectID, err
 		}).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userEmail, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	} else {
 		invites = userInvitesData.Accepted
@@ -124,7 +124,7 @@ func GetAcceptedInvitations(userEmail string) (invites []primitive.ObjectID, err
 }
 
 func GetRejectedInvitations(userId primitive.ObjectID) (invites []primitive.ObjectID, err error) {
-	userInvitesData := &UserInvitesData{}
+	userInvitesData := &UserInvites{}
 	err = MongoConn().Collection(UserInvitesCollection).FindOne(
 		context.Background(),
 		bson.M{
@@ -132,7 +132,7 @@ func GetRejectedInvitations(userId primitive.ObjectID) (invites []primitive.Obje
 		}).Decode(userInvitesData)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching received invitations for user %s: %s", userId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	} else {
 		invites = userInvitesData.Rejected
@@ -140,6 +140,6 @@ func GetRejectedInvitations(userId primitive.ObjectID) (invites []primitive.Obje
 	return
 }
 
-func (u *UserInvitesData) String() string {
+func (u *UserInvites) String() string {
 	return u.ID.String()
 }

@@ -50,7 +50,7 @@ func WriteLog(log string, params ...interface{}) {
 	logger.Printf(log, params)
 }
 
-func GetLogger() *log.Logger {
+func Logger() *log.Logger {
 	logInit.Do(func() {
 		if err := initLogger(); err != nil {
 			panic(fmt.Sprintf("error while initializing internal logger: %s", err))

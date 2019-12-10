@@ -56,10 +56,10 @@ func CreateInvitation(senderUserId, receiverUserId string) (objectId string, err
 	if err != nil {
 		reason := fmt.Sprintf("error while creating new user invite %#v: %s", inviteMap, err)
 		err = errors.New(reason)
-		GetLogger().Printf(reason)
+		Logger().Printf(reason)
 	} else {
 		objectId = res.InsertedID.(string) // TODO: Check if it is mostly string (expected), change the id to string, and use reflection on InsertID
-		GetLogger().Printf("user invite %#v successfully created with id: %v", inviteMap, res)
+		Logger().Printf("user invite %#v successfully created with id: %v", inviteMap, res)
 	}
 	return
 
@@ -73,7 +73,7 @@ func GetInvitation(inviteID string) (invite *Invite, err error) {
 	).Decode(invite)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching invites data for inviteID %s: %s", inviteID, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	}
 	return
@@ -95,12 +95,12 @@ func AlreadyConnected(senderUserId, receiverUserId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while checking for the user %s already has an active sent invitation to %s",
 			senderUserId, receiverUserId)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if count == 1 {
 		reason := fmt.Sprintf("user %s already has an active sent invitation to %s", senderUserId, receiverUserId)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -116,12 +116,12 @@ func AlreadyConnected(senderUserId, receiverUserId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while checking for the user %s already has an active received invitation to %s",
 			senderUserId, receiverUserId)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if count == 1 {
 		reason := fmt.Sprintf("user %s already has an active received invitation to %s", senderUserId, receiverUserId)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -137,11 +137,11 @@ func AlreadyConnected(senderUserId, receiverUserId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while checking for the user %s already has an accepted invitation to %s",
 			senderUserId, receiverUserId)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	} else if count == 1 {
 		reason := fmt.Sprintf("user %s already has an accepted invitation to %s", senderUserId, receiverUserId)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	}
 	return
@@ -166,13 +166,13 @@ func SendInvitation(senderUserId, invitationId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while adding invitation %s into %s's active sent invitation: %s", invitationId,
 			senderUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while adding invitation %s into %s's active sent invitation: %s",
 			invitationId, senderUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	}
 	return
@@ -197,13 +197,13 @@ func CancelInvitation(senderUserId, invitationId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while changing invitation %s state to %s: %s", invitationId,
 			CancelledInvite, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while changing invitation %s  state to %s's : %s",
 			invitationId, CancelledInvite, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -227,13 +227,13 @@ func CancelInvitation(senderUserId, invitationId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while adding invitation %s into %s's active sent invitation: %s", invitationId,
 			senderUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while adding invitation %s into %s's active sent invitation: %s",
 			invitationId, senderUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -256,12 +256,12 @@ func CancelInvitation(senderUserId, invitationId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while adding invitation %s into %s's cancelled invitation: %s", invitationId,
 			senderUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while adding invitation %s into %s's cancelled invitation: %s",
 			invitationId, senderUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	}
 	return
@@ -286,13 +286,13 @@ func ReceiveInvitation(receiverUserId, invitationId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while adding invitation %s into %s's active received invitation: %s",
 			invitationId, receiverUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while adding invitation %s into %s's received sent "+
 			"invitation: %s", invitationId, receiverUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 	}
 	return
@@ -318,13 +318,13 @@ func AcceptInvitation(receiverUserID, invitationID string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while changing invitation %s state to %s: %s", invitationID,
 			CancelledInvite, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while changing invitation %s  state to %s's : %s",
 			invitationID, CancelledInvite, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -348,13 +348,13 @@ func AcceptInvitation(receiverUserID, invitationID string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while adding %s into %s's active accepted invitation: %s", receiverUserID,
 			receiverUserID, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while adding %s into %s's received accepted invitation: %s",
 			receiverUserID, receiverUserID, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -377,13 +377,13 @@ func AcceptInvitation(receiverUserID, invitationID string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while removing %s from %s's received invitation: %s", receiverUserID,
 			receiverUserID, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while removing %s from %s's received invitation: %s",
 			receiverUserID, receiverUserID, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -393,7 +393,7 @@ func AcceptInvitation(receiverUserID, invitationID string) (err error) {
 	invitationData, err := GetInvitation(invitationID)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching invitation %s data: %s", invitationID, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -417,13 +417,13 @@ func AcceptInvitation(receiverUserID, invitationID string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while adding %s into %s's accepted invitation: %s", receiverUserID,
 			receiverUserID, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while adding %s into %s's accepted invitation: %s",
 			receiverUserID, receiverUserID, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -446,13 +446,13 @@ func AcceptInvitation(receiverUserID, invitationID string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while removing %s from %s's sent invitation: %s", receiverUserID,
 			receiverUserID, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while removing %s from %s's sent invitation: %s",
 			receiverUserID, receiverUserID, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -479,13 +479,13 @@ func RejectInvitation(receiverUserId, invitationId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while changing invitation %s state to %s: %s", invitationId,
 			CancelledInvite, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while changing invitation %s  state to %s's : %s",
 			invitationId, CancelledInvite, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -509,13 +509,13 @@ func RejectInvitation(receiverUserId, invitationId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while adding %s into %s's rejected invitation: %s", receiverUserId,
 			receiverUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while adding %s into %s's rejected invitation: %s",
 			receiverUserId, receiverUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -538,13 +538,13 @@ func RejectInvitation(receiverUserId, invitationId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while removing %s from %s's received invitation: %s", receiverUserId,
 			receiverUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while removing %s from %s's received invitation: %s",
 			receiverUserId, receiverUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -553,7 +553,7 @@ func RejectInvitation(receiverUserId, invitationId string) (err error) {
 	invitationData, err := GetInvitation(invitationId)
 	if err != nil {
 		reason := fmt.Sprintf("error while fetching invitation %s data: %s", invitationId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -577,13 +577,13 @@ func RejectInvitation(receiverUserId, invitationId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while adding %s into %s's accepted invitation: %s", receiverUserId,
 			receiverUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while adding %s into %s's accepted invitation: %s",
 			receiverUserId, receiverUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
@@ -606,13 +606,13 @@ func RejectInvitation(receiverUserId, invitationId string) (err error) {
 	if err != nil {
 		reason := fmt.Sprintf("error while removing %s from %s's sent invitation: %s", receiverUserId,
 			receiverUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	} else if result.ModifiedCount != 1 {
 		reason := fmt.Sprintf("invalid update count while removing %s from %s's sent invitation: %s",
 			receiverUserId, receiverUserId, err)
-		GetLogger().Println(reason)
+		Logger().Println(reason)
 		err = errors.New(reason)
 		return
 	}
