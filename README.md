@@ -3,7 +3,7 @@
 **Gibber** is a a simple chat application based on client-server model. The purpose of creating gibber is to make 
 chat (or "gibering"") effortless.
 
-* Version : 0.1
+* Version : 0.1 (under development)
 
 
 ### Built With
@@ -11,9 +11,9 @@ chat (or "gibering"") effortless.
 This is an under development project, and will be released by the end of Sep, 2018. It is currently being built using 
 these things: 
 
-* [Go](https://golang.org/) v1.10.2 
-* [MongoDB](https://www.mongodb.com/) v4.0.2
-* [Mongo-go-driver](https://godoc.org/github.com/mongodb/mongo-go-driver/mongo) v0.0.13
+* [Go](https://golang.org/) v1.13.4 
+* [MongoDB](https://docs.mongodb.com/manual/release-notes/4.2/#release-notes-for-mongodb-4-2) v4.2.1
+* [Mongo-go-driver](https://github.com/mongodb/mongo-go-driver/tree/v1.1.3) v1.1.3
 
 
 ### Contributors
