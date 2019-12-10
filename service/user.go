@@ -108,10 +108,11 @@ func GetUserByEmail(email string) (user *User, err error) {
 }
 
 func GetUserByID(objectID primitive.ObjectID) (user *User, err error) {
-	collection := MongoConn().Collection(UserCollection)
 	user = &User{}
-	//ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err = collection.FindOne(context.Background(), bson.M{"_id": objectID}).Decode(user)
+	err = MongoConn().
+		Collection(UserCollection).
+		FindOne(context.Background(), bson.M{ObjectID: objectID}).
+		Decode(user)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			err = fmt.Errorf("no user found with ID: %s", objectID.String())
@@ -613,6 +614,22 @@ func UserProfile(userID primitive.ObjectID) string {
 
 func (u *User) String() string {
 	return u.ID.String()
+}
+
+func (u *User) ShowChat(friendID primitive.ObjectID) (content string, timestamp time.Time) {
+	friend, _ := GetUserByID(friendID)
+	content = fmt.Sprintf("\n\n******************* Chat: %s %s *****************\n\n",
+		friend.FirstName, friend.LastName) // TODO: Use buffers instead
+	chat, err := GetChatByUserIDs(u.ID, friendID)
+	if err != nil {
+		Logger().Print(err)
+		return
+	}
+	for _, msg := range chat.Messages {
+		content += fmt.Sprintf(PrintMessage(msg, u, friend) + "\n")
+		timestamp = msg.Timestamp
+	}
+	return
 }
 
 func ValidUserEmail(email string) bool {

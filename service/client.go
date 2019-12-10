@@ -7,6 +7,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // a client using the gibber app
@@ -343,8 +344,33 @@ func (c *Client) ShowLandingPage() string {
 	return c.SendAndReceiveMsg(UserMenu, false)
 }
 
-func (c *Client) StarChat(friendID primitive.ObjectID) {
+const ChatPrompt = "Type message (press \"enter\" to send, \"q\" to quit): "
 
+func (c *Client) StarChat(friendID primitive.ObjectID) {
+	content, timestamp := c.User.ShowChat(friendID)
+	c.SendMessage(content, true)
+	var input string
+	done := make(chan bool)
+	go c.PollIncomingMessages(friendID, done, timestamp)
+	for {
+		c.SendMessage(ChatPrompt, false)
+		input = c.ReadMessage()
+		if input == "" {
+			c.SendMessage("Empty message can't be sent!!!", true)
+			continue
+		}
+		if strings.ToLower(input) == "q" {
+			done <- true // kill the incoming message listener
+			break
+		}
+		err := SendMessage(c.User.ID, friendID, input)
+		if err != nil {
+			Logger().Print(err)
+		}
+		//c.SendMessage(fmt.Sprintf("You: %s\n", input), false)
+		c.SendMessage(fmt.Sprintf("\bYou: %s\n", input), true)
+		//c.SendMessage(fmt.Sprintf("\x0c\x0c\x0c\x0cYou: %s\n", input), true)
+	}
 }
 
 func (c *Client) SendInvitation() {
@@ -416,7 +442,7 @@ func (c *Client) SeeActiveReceivedInvitations() {
 	}
 	c.SendMessage("\n**** Active Received Invitations ****\n", true)
 	for idx, invite := range invites {
-		c.SendMessage(fmt.Sprintf("%d - %s", idx+1,  UserProfile(invite)), true)
+		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, UserProfile(invite)), true)
 	}
 	userInput := c.SendAndReceiveMsg("\nChoose one to accept or reject(\"b to go back\"): ", false)
 	if c.Err != nil {
@@ -720,7 +746,7 @@ func (c *Client) SeeOnlineFriends() {
 	}
 	c.SendMessage("\n****************** Online Friends List *****************\n", true)
 	for idx, friend := range friends {
-		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, friend), true)
+		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, UserProfile(friend)), true)
 	}
 	// TODO: Pagination and search
 	userInput := c.SendAndReceiveMsg("Enter a friend's index to start chat: ", false)
@@ -732,7 +758,7 @@ func (c *Client) SeeOnlineFriends() {
 		return
 	}
 	// TODO: Check if valid friendIndex
-	c.StarChat(friends[friendIdx])
+	c.StarChat(friends[friendIdx-1])
 }
 
 func (c *Client) SeeFriends() {
@@ -764,6 +790,25 @@ func (c *Client) LogoutUser() {
 			reason := fmt.Sprintf("error while logging out client %s: %s", err)
 			Logger().Println(reason)
 			c.Err = errors.New(reason)
+		}
+	}
+}
+
+func (c *Client) PollIncomingMessages(other primitive.ObjectID, done chan bool, processed time.Time) {
+	otherUser, _ := GetUserByID(other)
+	pollTick := time.NewTicker(500 * time.Millisecond)
+	for {
+		select {
+		case <-done: // clean exit
+			return
+		case <-pollTick.C:
+			incomingMessages, _ := fetchIncomingMessages(processed, c.User.ID, other)
+			for _, msg := range incomingMessages {
+				processed = msg.Timestamp
+				c.SendMessage(fmt.Sprintf("\n\n%s (%s): %s\n", otherUser.FirstName, msg.Timestamp, msg.Text),
+					true)
+				c.SendMessage(ChatPrompt, false)
+			}
 		}
 	}
 }

@@ -2,8 +2,9 @@ package main
 
 import (
 	"gibber/service"
+	"log"
 )
 
 func main() {
-	service.StartServer()
+	log.Fatal(service.StartServer())
 }
