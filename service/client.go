@@ -114,9 +114,9 @@ func (c *Client) Authenticate() {
 func (c *Client) PromptForEmail() {
 	for failureCount := 0; failureCount < 3; failureCount++ {
 		if failureCount == 0 {
-			c.Email = c.SendAndReceiveMsg(EmailPrompt, false)
+			c.Email = c.SendAndReceiveMsg(EmailPrompt, false, false)
 		} else {
-			c.Email = c.SendAndReceiveMsg(ReenterEmailPrompt, false)
+			c.Email = c.SendAndReceiveMsg(ReenterEmailPrompt, false, false)
 		}
 		if c.Err != nil {
 			//c.SendMessage(ReadingError, true)
@@ -214,7 +214,7 @@ func (c *Client) RegisterUser() {
 		return
 	}
 
-	firstName := c.SendAndReceiveMsg(FirstNamePrompt, false)
+	firstName := c.SendAndReceiveMsg(FirstNamePrompt, false, false)
 	if c.Err != nil {
 		reason := fmt.Sprintf("reading user password failed: %s", c.Err)
 		Logger().Println(reason)
@@ -223,7 +223,7 @@ func (c *Client) RegisterUser() {
 	}
 	c.FirstName = firstName
 
-	lastName := c.SendAndReceiveMsg(LastNamePrompt, false)
+	lastName := c.SendAndReceiveMsg(LastNamePrompt, false, false)
 	if c.Err != nil {
 		reason := fmt.Sprintf("reading user last name failed: %s", c.Err)
 		Logger().Println(reason)
@@ -232,7 +232,7 @@ func (c *Client) RegisterUser() {
 	}
 	c.LastName = lastName
 
-	password := c.SendAndReceiveMsg(SetPasswordPrompt, false)
+	password := c.SendAndReceiveMsg(SetPasswordPrompt, false, false)
 	if c.Err != nil {
 		reason := fmt.Sprintf("reading user new password failed: %s", c.Err)
 		Logger().Println(reason)
@@ -245,7 +245,7 @@ func (c *Client) RegisterUser() {
 		return
 	}
 
-	confPassword := c.SendAndReceiveMsg(ConfirmSetPasswordPrompt, false)
+	confPassword := c.SendAndReceiveMsg(ConfirmSetPasswordPrompt, false, false)
 	if c.Err != nil {
 		reason := fmt.Sprintf("reading user confirm password failed: %s", c.Err)
 		Logger().Println(reason)
@@ -277,7 +277,7 @@ func (c *Client) RegisterUser() {
 	}
 }
 
-func (c *Client) SendAndReceiveMsg(msgToSend string, newline bool) (msgRecvd string) {
+func (c *Client) SendAndReceiveMsg(msgToSend string, newline, emptyInputValid bool) (msgRecvd string) {
 	c.SendMessage(msgToSend, newline)
 	if c.Err != nil {
 		return
@@ -289,7 +289,7 @@ func (c *Client) SendAndReceiveMsg(msgToSend string, newline bool) (msgRecvd str
 		c.Err = errors.New(reason)
 		return
 	}
-	if msgRecvd == "" {
+	if !emptyInputValid && msgRecvd == "" {
 		reason := fmt.Sprintf("empty string received from client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 		Logger().Println(reason)
 		c.SendMessage(EmptyInput, true)
@@ -341,7 +341,7 @@ func (c *Client) UserDashboard() {
 }
 
 func (c *Client) ShowLandingPage() string {
-	return c.SendAndReceiveMsg(UserMenu, false)
+	return c.SendAndReceiveMsg(UserMenu, false, false)
 }
 
 const ChatPrompt = "Type message (press \"enter\" to send, \"q\" to quit): "
@@ -379,7 +379,7 @@ func (c *Client) SendInvitation() {
 		// TODO: Handle error
 	}
 	for {
-		email := c.SendAndReceiveMsg(EmailSearchPrompt, false)
+		email := c.SendAndReceiveMsg(EmailSearchPrompt, false, false)
 		if c.Err != nil {
 			continue
 		}
@@ -391,7 +391,7 @@ func (c *Client) SendInvitation() {
 			continue
 		}
 		c.SendMessage(fmt.Sprintf("Send invite to %s", email), false)
-		confirm := c.SendAndReceiveMsg("Confirm? (Y/n): ", false)
+		confirm := c.SendAndReceiveMsg("Confirm? (Y/n): ", false, true)
 		if c.Err != nil {
 			// TODO: handle error
 		}
@@ -404,7 +404,7 @@ func (c *Client) SendInvitation() {
 
 func (c *Client) SeeInvitation() {
 	for {
-		userInput := c.SendAndReceiveMsg(InvitationMenu, false)
+		userInput := c.SendAndReceiveMsg(InvitationMenu, false, false)
 		if c.Err != nil {
 			continue
 		}
@@ -444,7 +444,8 @@ func (c *Client) SeeActiveReceivedInvitations() {
 	for idx, invite := range invites {
 		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, UserProfile(invite)), true)
 	}
-	userInput := c.SendAndReceiveMsg("\nChoose one to accept or reject(\"b to go back\"): ", false)
+	userInput := c.SendAndReceiveMsg("\nChoose one to accept or reject(\"b to go back\"): ", false,
+		false)
 	if c.Err != nil {
 		reason := fmt.Sprintf("error while receiving user invitation input from client %s: %s", (*c.Conn).RemoteAddr(), err)
 		Logger().Println(reason)
@@ -477,7 +478,7 @@ func (c *Client) SeeActiveReceivedInvitations() {
 	c.SendMessage("\n===== Invitation Details =====\n", true)
 	c.SendMessage(fmt.Sprintf("Name: %s %s", inviteeUser.FirstName, inviteeUser.LastName), true)
 	c.SendMessage(fmt.Sprintf("Email: %s", inviteeUser.Email), true)
-	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false)
+	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false, true)
 	if c.Err != nil {
 	}
 	if strings.ToLower(confirm) == "y" || confirm == "" {
@@ -508,7 +509,7 @@ func (c *Client) SeeActiveSentInvitations() {
 	for idx, invite := range invites {
 		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, UserProfile(invite)), true)
 	}
-	userInput := c.SendAndReceiveMsg("\nChoose one to cancel(\"b to go back\"): ", false)
+	userInput := c.SendAndReceiveMsg("\nChoose one to cancel(\"b to go back\"): ", false, false)
 	if c.Err != nil {
 		reason := fmt.Sprintf("error while seeing active user invitation sent from client %s: %s", (*c.Conn).RemoteAddr(), err)
 		Logger().Println(reason)
@@ -529,7 +530,7 @@ func (c *Client) SeeActiveSentInvitations() {
 	}
 	// The user sees 1-based indexing, so reducing one from it
 	inviteeUser, err := GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
-	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false)
+	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false, true)
 	if c.Err != nil {
 	}
 	if strings.ToLower(confirm) == "y" || confirm == "" {
@@ -559,7 +560,7 @@ func (c *Client) SeeInactiveReceivedInvitations() {
 	for idx, invite := range invites {
 		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, UserProfile(invite)), true)
 	}
-	userInput := c.SendAndReceiveMsg("\nChoose one to cancel(\"b to go back\"): ", false)
+	userInput := c.SendAndReceiveMsg("\nChoose one to cancel(\"b to go back\"): ", false, false)
 	if c.Err != nil {
 		reason := fmt.Sprintf("error while seeing active user invitation sent from client %s: %s", (*c.Conn).RemoteAddr(), err)
 		Logger().Println(reason)
@@ -580,7 +581,7 @@ func (c *Client) SeeInactiveReceivedInvitations() {
 	}
 	// The user sees 1-based indexing, so reducing one from it
 	inviteeUser, err := GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
-	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false)
+	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false, true)
 	if c.Err != nil {
 	}
 	if strings.ToLower(confirm) == "y" || confirm == "" {
@@ -605,7 +606,7 @@ func (c *Client) SeeInactiveSentInvitations() {
 func (c *Client) ChangePassword() {
 	var failureCount int
 	for failureCount = 0; failureCount < 3; failureCount++ {
-		currPassword := c.SendAndReceiveMsg("\nEnter your current password: ", false)
+		currPassword := c.SendAndReceiveMsg("\nEnter your current password: ", false, false)
 		if c.Err != nil {
 			continue
 		}
@@ -626,7 +627,7 @@ func (c *Client) ChangePassword() {
 		return // user unable to enter current password
 	}
 	for failureCount = 0; failureCount < 3; failureCount++ {
-		newPassword := c.SendAndReceiveMsg("\nEnter your new password: ", false)
+		newPassword := c.SendAndReceiveMsg("\nEnter your new password: ", false, false)
 		if c.Err != nil {
 			continue
 		}
@@ -643,7 +644,7 @@ func (c *Client) ChangePassword() {
 		//	c.Err = errors.New(reason)
 		//	continue
 		//}
-		confirmNewPassword := c.SendAndReceiveMsg("\nConfirm your new password: ", false)
+		confirmNewPassword := c.SendAndReceiveMsg("\nConfirm your new password: ", false, false)
 		if c.Err != nil {
 			continue
 		}
@@ -667,7 +668,7 @@ func (c *Client) ChangePassword() {
 }
 
 func (c *Client) ChangeName() {
-	newFirstName := c.SendAndReceiveMsg("\nEnter your new first name(enter blank for skip): ", false)
+	newFirstName := c.SendAndReceiveMsg("\nEnter your new first name(enter blank for skip): ", false, true)
 	if c.Err != nil {
 		//continue
 		// add retry
@@ -677,7 +678,7 @@ func (c *Client) ChangeName() {
 		Logger().Println(reason)
 	}
 
-	newLastName := c.SendAndReceiveMsg("\nEnter your new last name(enter blank for skip): ", false)
+	newLastName := c.SendAndReceiveMsg("\nEnter your new last name(enter blank for skip): ", false, true)
 	if c.Err != nil {
 		//continue
 		// add retry
@@ -749,7 +750,7 @@ func (c *Client) SeeOnlineFriends() {
 		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, UserProfile(friend)), true)
 	}
 	// TODO: Pagination and search
-	userInput := c.SendAndReceiveMsg("Enter a friend's index to start chat: ", false)
+	userInput := c.SendAndReceiveMsg("Enter a friend's index to start chat: ", false, false)
 	friendIdx, err := strconv.Atoi(userInput)
 	if err != nil {
 		reason := fmt.Sprintf("error while parsing user input %s to start chat: %s", userInput, err)
@@ -775,7 +776,7 @@ func (c *Client) SeeFriends() {
 	}
 	// TODO: Pagination and search
 	for {
-		userInput := c.SendAndReceiveMsg("\nEnter 'b' to go back: ", false)
+		userInput := c.SendAndReceiveMsg("\nEnter 'b' to go back: ", false, false)
 		if userInput == "b" {
 			break
 		}
