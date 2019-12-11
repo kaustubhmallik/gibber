@@ -395,9 +395,13 @@ func (c *Client) SendInvitation() {
 		if c.Err != nil {
 			// TODO: handle error
 		}
-		// TODO: add a check for empty input to not displayed when it's a valid input
 		if strings.ToLower(confirm) == "y" || confirm == "" {
 			err = c.User.SendInvitation(user)
+			if err == nil {
+				successMsg := fmt.Sprintf("\nInvitation sent successfully to %s %s (%s)", user.FirstName,
+					user.LastName, user.Email)
+				c.SendMessage(successMsg, true)
+			}
 		}
 	}
 }
