@@ -1,0 +1,15 @@
+#!/bin/sh
+
+echo "Git pre-commit hook starting...\n"
+
+golangci-lint run
+
+# abort commit if go lint found issues
+if [ "$?" != 0 ]; then
+  echo "\ncommit aborted: go linter found issues"
+  exit 1
+fi
+
+# everything is fine, go ahead
+exit 0
+

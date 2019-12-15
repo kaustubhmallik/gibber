@@ -384,7 +384,8 @@ func (c *Client) SendInvitation() {
 		if c.Err != nil {
 			continue
 		}
-		if strings.ToLower(email) == "q" {
+		email = strings.ToLower(email)
+		if email == "q" {
 			break
 		}
 		user, err := c.SeePublicProfile(email)
@@ -802,7 +803,7 @@ func (c *Client) LogoutUser() {
 	if c.User.Email != "" {
 		err := c.User.Logout()
 		if err != nil {
-			reason := fmt.Sprintf("error while logging out client %s: %s", err)
+			reason := fmt.Sprintf("error while logging out client %s: %s", c.User.Email, err)
 			Logger().Println(reason)
 			c.Err = errors.New(reason)
 		}

@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"io/ioutil"
 )
 
@@ -14,5 +13,4 @@ func PrintLogo() {
 		Logger().Printf("reading logo file %s filed failed: %s", filePath, err)
 	}
 	Logger().Println(string(logoData[:]))
-	fmt.Println(string(logoData[:]))
 }

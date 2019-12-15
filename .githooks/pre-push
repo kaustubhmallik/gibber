@@ -1,0 +1,15 @@
+#!/bin/sh
+
+echo "Git pre-push hook starting...\n"
+
+make test
+
+# abort commit if make failed
+if [ "$?" != 0 ]; then
+  echo "\npush aborted: make command failed"
+  exit 1
+fi
+
+# everything is fine, go ahead
+exit 0
+
