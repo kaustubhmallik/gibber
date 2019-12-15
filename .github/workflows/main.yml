@@ -1,16 +1,16 @@
-name: CI
+name: continuous-integration
 
-on: 
+on:
   pull_request:
-    branches: 
+    branches:
       - master
   push:
-    branches: 
+    branches:
       - dev
 
 jobs:
   build:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
-    - name: Build and run tests
-      run: make
+      - name: Build and run tests
+        run: make
