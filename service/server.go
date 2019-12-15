@@ -61,7 +61,7 @@ func establishClientConnection(conn *net.Conn) {
 
 func closeClientConnection(conn *net.Conn) {
 	Logger().Printf("client %s => closing connection from internal", (*conn).RemoteAddr().String())
-	(*conn).Close()
+	_ = (*conn).Close()
 }
 
 //var err error

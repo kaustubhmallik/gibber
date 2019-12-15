@@ -17,7 +17,7 @@ type Client struct {
 	*Connection
 }
 
-// User Response Msgs
+// User Response Messages
 const (
 	WelcomeMsg               = "Welcome to Gibber. Hope you have a lot to say today."
 	EmailPrompt              = "\nPlease enter your email to continue.\nEmail: "
@@ -39,14 +39,14 @@ const (
 
 // specific errors
 const (
-	PasswordMismatch = "Incorrect password"
-	InvalidEmail     = "Invalid email"
-	ServerError      = "Server processing error"
-	EmptyInput       = "Empty input\n"
-	ShortPassword    = "Password should be at 6 characters long"
-	ReadingError     = "Error while receiving data at internal"
-	ExitingMsg       = "Exiting..."
-	InvalidInput     = "Invalid input\n"
+	PasswordMismatch = "incorrect password"
+	InvalidEmail     = "invalid email"
+	ServerError      = "server processing error"
+	EmptyInput       = "empty input\n"
+	ShortPassword    = "password should be at 6 characters long"
+	ExitingMsg       = "exiting..."
+	InvalidInput     = "invalid input\n"
+	//ReadingError     = "Error while receiving data at internal"
 )
 
 // user menus
@@ -675,7 +675,7 @@ func (c *Client) ChangePassword() {
 			continue
 		}
 		if newPassword != confirmNewPassword {
-			reason := "Passwords didn't match"
+			reason := "passwords didn't match"
 			Logger().Println(reason)
 			c.SendMessage(reason, true)
 			c.Err = errors.New(reason)
@@ -751,15 +751,15 @@ func (c *Client) SeeSelfProfile() {
 // allow a client to see other person's basic detail before sending invitation
 func (c *Client) SeePublicProfile(email string) (user *User, err error) {
 	user, err = GetUserByEmail(email)
-	if err == mongo.ErrNoDocuments {
-		c.SendMessage(fmt.Sprintf("\nNo user found with given email %s", email), true)
-		if c.Err != nil {
-			reason := fmt.Sprintf("error while sending no user found msg: %s", c.Err)
-			Logger().Println(reason)
-			return
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.SendMessage(fmt.Sprintf("\nNo user found with given email %s", email), true)
 		}
+		reason := fmt.Sprintf("error while sending no user found msg: %s", c.Err)
+		Logger().Println(reason)
+		return
 	}
-	c.SendMessage(fmt.Sprintf("\nUser found => First Name: %s, LastName: %s, Email: %s", user.FirstName, user.LastName,
+	c.SendMessage(fmt.Sprintf("\nuser found => First Name: %s, LastName: %s, Email: %s", user.FirstName, user.LastName,
 		user.Email), true)
 	return
 }

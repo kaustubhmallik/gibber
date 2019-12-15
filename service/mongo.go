@@ -15,8 +15,6 @@ const (
 	MongoSetOperator  = "$set"
 	MongoPushOperator = "$push"
 	MongoPullOperator = "$pull"
-	MongoOrOperator   = "$or"
-	MongoAndOperator  = "$and"
 )
 
 // common fields/attributes of documents in various collections

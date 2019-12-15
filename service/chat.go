@@ -12,13 +12,13 @@ import (
 
 // user document collection name and fields
 const (
-	ChatCollection   = "chats"
-	ChatUser1        = "user_1"
-	ChatUser2        = "user_2"
-	ChatMessages     = "messages"
-	MessageSender    = "sender"
-	MessageText      = "text"
-	MessageTimestamp = "timestamp"
+	ChatCollection = "chats"
+	ChatUser1      = "user_1"
+	ChatUser2      = "user_2"
+	ChatMessages   = "messages"
+	//MessageSender    = "sender"
+	//MessageText      = "text"
+	//MessageTimestamp = "timestamp"
 )
 
 type Message struct {
@@ -57,23 +57,23 @@ func GetChatByUserIDs(userID1, userID2 primitive.ObjectID) (chat *Chat, err erro
 	return
 }
 
-func GetChatByObjID(ID primitive.ObjectID) (chat *Chat, err error) {
-	chat = &Chat{}
-	err = MongoConn().
-		Collection(ChatCollection).
-		FindOne(context.Background(),
-			bson.M{ObjectID: ID}).
-		Decode(chat)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			err = fmt.Errorf("no chat found with ID: %s", ID.String())
-		} else {
-			err = fmt.Errorf("decoding(unmarshal) chat result with ID %s failed: %s", ID.String(), err)
-		}
-		Logger().Println(err)
-	}
-	return
-}
+//func GetChatByObjID(ID primitive.ObjectID) (chat *Chat, err error) {
+//	chat = &Chat{}
+//	err = MongoConn().
+//		Collection(ChatCollection).
+//		FindOne(context.Background(),
+//			bson.M{ObjectID: ID}).
+//		Decode(chat)
+//	if err != nil {
+//		if err == mongo.ErrNoDocuments {
+//			err = fmt.Errorf("no chat found with ID: %s", ID.String())
+//		} else {
+//			err = fmt.Errorf("decoding(unmarshal) chat result with ID %s failed: %s", ID.String(), err)
+//		}
+//		Logger().Println(err)
+//	}
+//	return
+//}
 
 func SendMessage(sender, receiver primitive.ObjectID, text string) (err error) {
 	msg := Message{

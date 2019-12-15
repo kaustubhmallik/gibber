@@ -18,10 +18,6 @@ var logInit sync.Once
 
 func initLogger() (err error) {
 	projectRootPath := ProjectRootPath()
-	if err != nil {
-		err = fmt.Errorf("getting project root path failed: %s", err)
-		return
-	}
 	logDir := projectRootPath + "generated/"
 	if _, err = os.Stat(logDir); os.IsNotExist(err) {
 		err = os.Mkdir(logDir, 0755)
