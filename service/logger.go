@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const LogFileName = "internal.log"
+const LogFileName = "debug.log"
 const LogPrefix = "Gibber::Server	"
 
 // for transaction requests logging
