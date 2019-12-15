@@ -303,7 +303,7 @@ func (u *User) UpdateName(firstName, lastName string) (err error) {
 				Value: u.Email,
 			},
 		},
-		updatedDoc,
+		bson.D{{Key: MongoSetOperator, Value: updatedDoc}},
 	)
 	if err != nil {
 		reason := fmt.Sprintf("name update failed for u %s: %s", u.Email, err)
