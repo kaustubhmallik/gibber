@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -26,7 +27,7 @@ const (
 	NewUserMsg               = "You are an unregistered user. Please register yourself by providing details.\n"
 	FirstNamePrompt          = "First Name: "
 	LastNamePrompt           = "Last Name: "
-	SuccessfulLogin          = "\nLogged In Successfully\n"
+	SuccessfulLogin          = "\nLogged In Successfully. Last login: %s\n"
 	FailedLogin              = "Log In Failed"
 	SuccessfulRegistration   = "\nRegistered Successfully"
 	FailedRegistration       = "\nRegistration Failed"
@@ -123,7 +124,8 @@ func (c *Client) PromptForEmail() {
 			//Logger().Printf("reading user email from client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 			continue
 		}
-		if !ValidUserEmail(c.Email) { // check for valid email - regex based
+		c.Email = strings.ToLower(c.Email) // make email address case insensitive
+		if !ValidUserEmail(c.Email) {      // check for valid email - regex based
 			Logger().Printf("invalid email %s", c.Email)
 			c.SendMessage(InvalidEmail, true)
 			if c.Err != nil {
@@ -170,10 +172,11 @@ func (c *Client) LoginUser() {
 		}
 		password := c.ReadMessage()
 		if c.Err != nil {
-			c.Err = fmt.Errorf("reading user password failed: %s", c.Err)
+			Logger().Printf("reading user password failed: %s", c.Err)
 			continue
 		}
-		c.Err = c.User.LoginUser(password)
+		var lastLogin string
+		lastLogin, c.Err = c.User.LoginUser(password)
 		if c.Err != nil {
 			reason := fmt.Sprintf("user %s authentication failed: %s", c.Email, c.Err)
 			Logger().Println(reason)
@@ -186,7 +189,7 @@ func (c *Client) LoginUser() {
 			continue
 		}
 		Logger().Printf("user %s successfully logged in", c.Email)
-		c.SendMessage(SuccessfulLogin, true)
+		c.SendMessage(fmt.Sprintf(SuccessfulLogin, lastLogin), true)
 		if c.Err != nil {
 			reason := fmt.Sprintf("successful login msg failed to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 			Logger().Println(reason)
@@ -284,9 +287,7 @@ func (c *Client) SendAndReceiveMsg(msgToSend string, newline, emptyInputValid bo
 	}
 	msgRecvd = c.ReadMessage()
 	if c.Err != nil {
-		reason := fmt.Sprintf("reading failed from client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
-		Logger().Println(reason)
-		c.Err = errors.New(reason)
+		Logger().Printf("reading failed from client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 		return
 	}
 	if !emptyInputValid && msgRecvd == "" {
@@ -307,11 +308,11 @@ func (c *Client) UserDashboard() {
 	var userInput string
 	for !exit {
 		userInput = c.ShowLandingPage()
-		if c.Err != nil {
-			continue
-		}
 		choice, err := strconv.Atoi(userInput)
-		if err != nil {
+		if c.Err == io.EOF { // connection is closed
+			Logger().Printf("connection closed from %s", (*c.Conn).RemoteAddr())
+			break
+		} else if err != nil {
 			c.SendMessage(InvalidInput, true)
 			continue
 		}
@@ -332,7 +333,7 @@ func (c *Client) UserDashboard() {
 		case ChangeNameChoice:
 			c.ChangeName()
 		case SeeProfileChoice:
-			c.ChangeName()
+			c.SeePersonalProfile()
 		default:
 			c.SendMessage(InvalidInput, true)
 			continue
@@ -701,6 +702,15 @@ func (c *Client) ChangeName() {
 
 	c.SendMessage("Name successfully updated\n", true)
 	return
+}
+
+func (c *Client) SeePersonalProfile() {
+	details := "\n************ Profile ************ \n"
+	details += fmt.Sprintf("\nFirst Name: %s\n", c.User.FirstName)
+	details += fmt.Sprintf("Last Name: %s\n", c.User.LastName)
+	details += fmt.Sprintf("Email: %s\n", c.User.Email)
+	details += fmt.Sprintf("Last Login: %s\n", c.User.LastLogin)
+	c.SendMessage(details, true)
 }
 
 func (c *Client) ExitClient() {

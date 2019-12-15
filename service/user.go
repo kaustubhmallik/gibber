@@ -19,6 +19,7 @@ const (
 	UserLastNameField  = "last_name"
 	UserEmailField     = "email"
 	UserLoggedIn       = "logged_in"
+	LastLogin          = "last_login"
 	UserPasswordField  = "password"
 	InvitesDataField   = "invites_data_id"
 )
@@ -125,7 +126,7 @@ func GetUserByID(objectID primitive.ObjectID) (user *User, err error) {
 }
 
 // raises an error if authentication fails due to any reason, including password mismatch
-func (user *User) LoginUser(password string) (err error) {
+func (user *User) LoginUser(password string) (lastLogin string, err error) {
 	fetchDBUser, err := GetUserByEmail(user.Email)
 	if err != nil {
 		reason := fmt.Sprintf("authenticate user failed: %s", err)
@@ -157,6 +158,10 @@ func (user *User) LoginUser(password string) (err error) {
 						Key:   UserLoggedIn,
 						Value: true,
 					},
+					{
+						Key:   LastLogin,
+						Value: time.Now().UTC(),
+					},
 				},
 			},
 		},
@@ -173,10 +178,6 @@ func (user *User) LoginUser(password string) (err error) {
 		return
 	}
 
-	//user.Password = fetchDBUser.Password
-	//user.FirstName = fetchDBUser.FirstName
-	//user.LastName = fetchDBUser.LastName
-	//user.ID = fetchDBUser.ID
 	user.ID = fetchDBUser.ID
 	user.FirstName = fetchDBUser.FirstName
 	user.LastName = fetchDBUser.LastName
@@ -185,6 +186,7 @@ func (user *User) LoginUser(password string) (err error) {
 	user.LastLogin = fetchDBUser.LastLogin
 	user.LoggedIn = fetchDBUser.LoggedIn
 	user.InvitesId = fetchDBUser.InvitesId
+	lastLogin = fetchDBUser.LastLogin.Format(time.RFC3339)
 	return
 }
 
