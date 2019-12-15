@@ -681,8 +681,13 @@ func (c *Client) ChangePassword() {
 			c.Err = errors.New(reason)
 			continue
 		}
-		passwordHash := GenerateHash(newPassword)
-		err := c.User.UpdatePassword(passwordHash)
+		passwordHash, err := GenerateHash(newPassword)
+		if err != nil {
+			Logger().Println(err)
+			c.Err = err
+			return
+		}
+		err = c.User.UpdatePassword(passwordHash)
 		if err != nil {
 			c.Err = err
 			c.SendMessage("Password update failed. Please try again.\n", true)
@@ -832,7 +837,12 @@ func (c *Client) LogoutUser() {
 }
 
 func (c *Client) PollIncomingMessages(other primitive.ObjectID, done chan bool, processed time.Time) {
-	otherUser, _ := GetUserByID(other)
+	otherUser, err := GetUserByID(other)
+	if err != nil {
+		c.Err = fmt.Errorf("error fetching user %s details: %s", c.User.Email, err)
+		Logger().Print(c.Err)
+		return
+	}
 	pollTick := time.NewTicker(500 * time.Millisecond)
 	for {
 		select {

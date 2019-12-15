@@ -46,9 +46,15 @@ func CreateUser(user *User) (userId interface{}, err error) {
 		err = errors.New(reason)
 		return
 	}
-	user.Password = GenerateHash(user.Password)
+	user.Password, err = GenerateHash(user.Password)
+	if err != nil {
+		return
+	}
 	user.LoggedIn = true // as user is just created, he becomes online, until he quits the session
-	userMap := GetMap(user)
+	userMap, err := GetMap(user)
+	if err != nil {
+		return
+	}
 	userMap["last_login"] = time.Now().UTC()
 
 	session, err := MongoConn().Client().StartSession()

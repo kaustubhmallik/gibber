@@ -41,7 +41,11 @@ func CreateUserInvitesData(userId interface{}, ctx context.Context) (userInvites
 		Rejected:  make([]primitive.ObjectID, 0),
 		Cancelled: make([]primitive.ObjectID, 0),
 	}
-	userInvitesDataMap := GetMap(*userInvites)
+	userInvitesDataMap, err := GetMap(*userInvites)
+	if err != nil {
+		Logger().Printf("error fetching user details map: %s", err)
+		return
+	}
 	userInvitesDataMap["user_id"] = userId.(primitive.ObjectID)
 	res, err := MongoConn().Collection(UserInvitesCollection).InsertOne(
 		ctx,

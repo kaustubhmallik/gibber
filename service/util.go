@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 )
 
-func GetMap(data interface{}) map[string]interface{} {
+func GetMap(data interface{}) (dataMap map[string]interface{}, err error) {
 	if data == nil {
-		return nil
+		return
 	}
-	bytes, _ := json.Marshal(data)
-	dataMap := make(map[string]interface{})
-	_ = json.Unmarshal(bytes, &dataMap)
-	return dataMap
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal(bytes, &dataMap)
+	return
 }
