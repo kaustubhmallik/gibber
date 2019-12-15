@@ -50,52 +50,74 @@ func CreateUser(user *User) (userId interface{}, err error) {
 	user.LoggedIn = true // as user is just created, he becomes online, until he quits the session
 	userMap := GetMap(user)
 	userMap["last_login"] = time.Now().UTC()
-	collection := MongoConn().Collection(UserCollection)
-	res, err := collection.InsertOne(context.Background(), userMap)
+
+	session, err := MongoConn().Client().StartSession()
 	if err != nil {
-		reason := fmt.Sprintf("error while creating new user %#v: %s", userMap, err)
-		err = errors.New(reason)
-		Logger().Printf(reason)
-	} else {
-		userId = res.InsertedID
-		user.ID = res.InsertedID.(primitive.ObjectID)
-		Logger().Printf("user %#v successfully created with userId: %v", userMap, res)
+		Logger().Printf("initializing mongo session failed: %s", err)
+		return
 	}
-	var invitesId primitive.ObjectID
-	invitesDataId, err := CreateUserInvitesData(userId)
-	invitesId = invitesDataId.(primitive.ObjectID)
+
+	err = session.StartTransaction()
 	if err != nil {
-		var delRes *mongo.DeleteResult
-		delRes, err = MongoConn().Collection(UserCollection).DeleteOne(
-			context.Background(),
-			bson.M{
-				ObjectID: userId,
-			})
-		if err == nil || (delRes != nil && delRes.DeletedCount == 0) {
-			reason := fmt.Sprintf("error while rollbacking deleting user %s: %s", userId, err)
-			Logger().Println(reason)
+		Logger().Printf("initializing mongo transaction failed: %s", err)
+		return
+	}
+
+	err = mongo.WithSession(context.Background(), session, func(sc mongo.SessionContext) (er error) {
+		// create user
+		res, er := MongoConn().Collection(UserCollection).InsertOne(sc, userMap)
+		if er != nil {
+			_ = session.AbortTransaction(sc)
+			er = fmt.Errorf("error while creating new user %#v: %s", userMap, er)
+			Logger().Print(er)
 			return
+		} else {
+			userId = res.InsertedID
+			user.ID = res.InsertedID.(primitive.ObjectID)
+			Logger().Printf("user %#v successfully created with userId: %v", userMap, res)
 		}
-	}
-	updateRes, err := MongoConn().Collection(UserCollection).UpdateOne(
-		context.Background(),
-		bson.M{ObjectID: userId},
-		bson.D{{
-			MongoSetOperator, bson.D{{InvitesDataField, invitesId}},
-		}})
-	if err != nil || updateRes.ModifiedCount != 1 {
-		reason := fmt.Sprintf("error while setting up invites data for user%s: %s", userId, err)
-		Logger().Println(reason)
-		err = errors.New(reason)
-	}
+
+		// create user_invite
+		var invitesId primitive.ObjectID
+		invitesDataId, er := CreateUserInvitesData(userId, sc)
+		invitesId = invitesDataId.(primitive.ObjectID)
+		if er != nil {
+			_ = session.AbortTransaction(sc)
+			Logger().Printf("error creating user invite: %s", er)
+			return er
+		}
+
+		// update invite_user doc ID in user's doc
+		updateRes, er := MongoConn().Collection(UserCollection).UpdateOne(
+			sc,
+			bson.M{ObjectID: userId},
+			bson.D{{
+				Key: MongoSetOperator, Value: bson.D{{Key: InvitesDataField, Value: invitesId}},
+			}})
+		if er != nil || updateRes.ModifiedCount != 1 {
+			er = fmt.Errorf("error while setting up invites data for user%s: %s", userId, err)
+			Logger().Print(er)
+		}
+
+		// commit transaction
+		if er := session.CommitTransaction(sc); er != nil {
+			Logger().Printf("committing mongo transaction failed: %s", er)
+			er = session.AbortTransaction(sc)
+			if er != nil {
+				Logger().Printf("aborting mongo transaction failed: %s", er)
+			}
+		}
+		return nil
+	})
+
+	session.EndSession(context.Background())
 	return
 }
 
 func GetUserByEmail(email string) (user *User, err error) {
 	collection := MongoConn().Collection(UserCollection)
 	user = &User{}
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err = collection.FindOne(ctx, bson.M{UserEmailField: email}).Decode(user)
+	err = collection.FindOne(context.Background(), bson.M{UserEmailField: email}).Decode(user)
 	if err == mongo.ErrNoDocuments {
 		reason := fmt.Sprintf("no user found with email: %s", email)
 		Logger().Println(reason)
@@ -196,9 +218,8 @@ func (user *User) ExistingUser() (exists bool) {
 		return
 	}
 	if err != nil { // some other error occurred
-		reason := fmt.Sprintf("user email unique check failed: %s", err)
-		Logger().Println(reason)
-		err = errors.New(reason)
+		err = fmt.Errorf("user email unique check failed: %s", err)
+		Logger().Println(err)
 		return
 	}
 	exists = true
@@ -328,15 +349,10 @@ func (user *User) Logout() (err error) {
 	result, err := MongoConn().Collection(UserCollection).UpdateOne(
 		context.Background(),
 		bson.D{
-			{
-				UserEmailField,
-				user.Email,
-			},
+			{Key: UserEmailField, Value: user.Email},
 		},
 		bson.D{
-			{
-				MongoSetOperator, bson.D{{UserLoggedIn, false}},
-			},
+			{Key: MongoSetOperator, Value: bson.D{{Key: UserLoggedIn, Value: false}}},
 		},
 	)
 	if err != nil {
@@ -354,54 +370,67 @@ func (user *User) Logout() (err error) {
 }
 
 func (u *User) SendInvitation(recv *User) (err error) {
-	// TODO: Add mongo transaction
-	//ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-	result, err := MongoConn().Collection(UserInvitesCollection).UpdateOne(
-		context.Background(),
-		bson.D{
-			{
-				UserIdField,
-				u.ID,
-			},
-		},
-		bson.D{
-			{
-				MongoPushOperator, bson.D{{SentInvitesField, recv.ID}},
-			},
-		},
-	)
+	session, err := MongoConn().Client().StartSession()
 	if err != nil {
-		reason := fmt.Sprintf("sending invitation failed from %s to %s: %s", u.Email, recv.Email, err)
-		Logger().Println(reason)
-		err = errors.New(reason)
-	} else if result.ModifiedCount != 1 {
-		reason := fmt.Sprintf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
-		Logger().Println(reason)
+		Logger().Printf("initializing mongo session failed: %s", err)
+		return
 	}
 
-	//ctx, _ = context.WithTimeout(context.Background(), 5*time.Second)
-	result, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
-		context.Background(),
-		bson.D{
-			{
-				UserIdField,
-				recv.ID,
-			},
-		},
-		bson.D{
-			{
-				MongoPushOperator, bson.D{{ReceivedInvitesField, u.ID}},
-			},
-		},
-	)
+	err = session.StartTransaction()
 	if err != nil {
-		reason := fmt.Sprintf("sending invitation failed from %s to %s: %s", u.Email, recv.Email, err)
-		Logger().Println(reason)
-		err = errors.New(reason)
-	} else if result.ModifiedCount != 1 {
-		reason := fmt.Sprintf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
-		Logger().Println(reason)
+		Logger().Printf("initializing mongo transaction failed: %s", err)
+		return
 	}
+
+	err = mongo.WithSession(context.Background(), session, func(sc mongo.SessionContext) (er error) {
+		result, er := MongoConn().Collection(UserInvitesCollection).UpdateOne(
+			sc,
+			bson.D{
+				{Key: UserIdField, Value: u.ID},
+			},
+			bson.D{
+				{Key: MongoPushOperator, Value: bson.D{{Key: SentInvitesField, Value: recv.ID}}},
+			},
+		)
+		if er != nil {
+			_ = session.AbortTransaction(sc)
+			er = fmt.Errorf("sending invitation failed from %s to %s: %s", u.Email, recv.Email, err)
+			Logger().Println(er)
+		} else if result.ModifiedCount != 1 {
+			_ = session.AbortTransaction(sc)
+			reason := fmt.Sprintf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
+			Logger().Println(reason)
+		}
+
+		result, er = MongoConn().Collection(UserInvitesCollection).UpdateOne(
+			sc,
+			bson.D{
+				{Key: UserIdField, Value: recv.ID},
+			},
+			bson.D{
+				{Key: MongoPushOperator, Value: bson.D{{Key: ReceivedInvitesField, Value: u.ID}}},
+			},
+		)
+		if er != nil {
+			_ = session.AbortTransaction(sc)
+			er = fmt.Errorf("sending invitation failed from %s to %s: %s", u.Email, recv.Email, err)
+			Logger().Print(er)
+		} else if result.ModifiedCount != 1 {
+			_ = session.AbortTransaction(sc)
+			reason := fmt.Sprintf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
+			Logger().Println(reason)
+		}
+
+		// commit transaction
+		if er := session.CommitTransaction(sc); er != nil {
+			Logger().Printf("committing mongo transaction failed: %s", er)
+			er = session.AbortTransaction(sc)
+			if er != nil {
+				Logger().Printf("aborting mongo transaction failed: %s", er)
+			}
+		}
+		return
+	})
 	return
 }
 
@@ -410,83 +439,111 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 	// Delete the sent request from user's invites data (THINK OF SOFT DELETE) - Done
 	// Add user as u's friend
 	// Add u as user's
-
-	// TODO: Add mongo transaction
-	var res *mongo.UpdateResult
-	res, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
-		context.Background(),
-		bson.M{UserIdField: u.ID},
-		bson.D{
-			{MongoPullOperator, bson.D{{ReceivedInvitesField, userID}}},
-		})
+	session, err := MongoConn().Client().StartSession()
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			err = fmt.Errorf("invite data not found for invite accepting user %s", u.ID.String())
-		} else {
-			err = fmt.Errorf("invite data fetch failed for invite accepting user %s: %s", u.ID.String(), err)
+		Logger().Printf("initializing mongo session failed: %s", err)
+		return
+	}
+
+	err = session.StartTransaction()
+	if err != nil {
+		Logger().Printf("initializing mongo transaction failed: %s", err)
+		return
+	}
+
+	err = mongo.WithSession(context.Background(), session, func(sc mongo.SessionContext) (er error) {
+		var res *mongo.UpdateResult
+		res, er = MongoConn().Collection(UserInvitesCollection).UpdateOne(
+			sc,
+			bson.M{UserIdField: u.ID},
+			bson.D{
+				{Key: MongoPullOperator, Value: bson.D{{Key: ReceivedInvitesField, Value: userID}}},
+			})
+		if er != nil {
+			_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
+			if er == mongo.ErrNoDocuments {
+				er = fmt.Errorf("invite data not found for invite accepting user %s", u.ID.String())
+			} else {
+				er = fmt.Errorf("invite data fetch failed for invite accepting user %s: %s", u.ID.String(), er)
+			}
+			Logger().Print(er)
+			return
+		} else if res.ModifiedCount != 1 {
+			er = fmt.Errorf("invite data not updated for invite accepting user %s", u.ID.String())
+			Logger().Print(er)
+			return
 		}
-		Logger().Print(err)
-		return
-	} else if res.ModifiedCount != 1 {
-		err = fmt.Errorf("invite data not updated for invite accepting user %s: %s", u.ID.String())
-		Logger().Print(err)
-		return
-	}
 
-	res, err = MongoConn().Collection(UserInvitesCollection).UpdateOne(
-		context.Background(),
-		bson.M{UserIdField: userID},
-		bson.D{
-			{MongoPullOperator, bson.D{{SentInvitesField, u.ID}}},
-		})
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			err = fmt.Errorf("invite data not found for invite sending user %s", u.ID.String())
-		} else {
-			err = fmt.Errorf("invite data fetch failed for invite sending user %s: %s", u.ID.String(), err)
+		res, er = MongoConn().Collection(UserInvitesCollection).UpdateOne(
+			sc,
+			bson.M{UserIdField: userID},
+			bson.D{
+				{Key: MongoPullOperator, Value: bson.D{{Key: SentInvitesField, Value: u.ID}}},
+			})
+		if er != nil {
+			_ = session.AbortTransaction(sc)
+			if er == mongo.ErrNoDocuments {
+				er = fmt.Errorf("invite data not found for invite sending user %s", u.ID.String())
+			} else {
+				er = fmt.Errorf("invite data fetch failed for invite sending user %s: %s", u.ID.String(), er)
+			}
+			Logger().Print(er)
+			return
+		} else if res.ModifiedCount != 1 {
+			er = fmt.Errorf("invite data not updated for invite sending user %s", userID.String())
+			Logger().Print(er)
+			return
 		}
-		Logger().Print(err)
-		return
-	} else if res.ModifiedCount != 1 {
-		err = fmt.Errorf("invite data not updated for invite sending user %s: %s", userID.String())
-		Logger().Print(err)
-		return
-	}
 
-	// using upsert: true to create the friends document if non-existent
-	res, err = MongoConn().Collection(FriendsCollection).UpdateOne(context.Background(),
-		bson.M{UserIdField: u.ID},
-		bson.D{
-			{MongoPushOperator, bson.D{{FriendsField, userID}}},
-		},
-		options.Update().SetUpsert(true))
-	if err != nil {
-		err = fmt.Errorf("error while adding %s as friend for %s: %s", userID.String(), u.ID.String(), err)
-		Logger().Print(err)
-		return
-	} else if res.ModifiedCount+res.UpsertedCount != 1 {
-		err = fmt.Errorf("document not created/updated to add %s as friend for %s: %s", userID.String(),
-			u.ID.String(), err)
-		return
-	}
+		// using upsert: true to create the friends document if non-existent
+		res, er = MongoConn().Collection(FriendsCollection).UpdateOne(
+			sc,
+			bson.M{UserIdField: u.ID},
+			bson.D{
+				{Key: MongoPushOperator, Value: bson.D{{Key: FriendsField, Value: userID}}},
+			},
+			options.Update().SetUpsert(true))
+		if er != nil {
+			_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
+			er = fmt.Errorf("error while adding %s as friend for %s: %s", userID.String(), u.ID.String(), er)
+			Logger().Print(er)
+			return
+		} else if res.ModifiedCount+res.UpsertedCount != 1 {
+			er = fmt.Errorf("document not created/updated to add %s as friend for %s: %s", userID.String(),
+				u.ID.String(), er)
+			Logger().Print(er)
+			return
+		}
 
-	// using upsert: true to create the friends document if non-existent
-	res, err = MongoConn().Collection(FriendsCollection).UpdateOne(context.Background(),
-		bson.M{UserIdField: userID},
-		bson.D{
-			{MongoPushOperator, bson.D{{FriendsField, u.ID}}},
-		},
-		options.Update().SetUpsert(true))
-	if err != nil {
-		err = fmt.Errorf("error while adding %s as friend for %s: %s", u.ID.String(), userID.String(), err)
-		Logger().Print(err)
-		return
-	} else if res.ModifiedCount+res.UpsertedCount != 1 {
-		err = fmt.Errorf("document not created/updated to add %s as friend for %s: %s", u.ID.String(),
-			userID.String(), err)
-		return
-	}
+		// using upsert: true to create the friends document if non-existent
+		res, err = MongoConn().Collection(FriendsCollection).UpdateOne(
+			sc,
+			bson.M{UserIdField: userID},
+			bson.D{
+				{Key: MongoPushOperator, Value: bson.D{{Key: FriendsField, Value: u.ID}}},
+			},
+			options.Update().SetUpsert(true))
+		if err != nil {
+			_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
+			err = fmt.Errorf("error while adding %s as friend for %s: %s", u.ID.String(), userID.String(), err)
+			Logger().Print(err)
+			return
+		} else if res.ModifiedCount+res.UpsertedCount != 1 {
+			err = fmt.Errorf("document not created/updated to add %s as friend for %s: %s", u.ID.String(),
+				userID.String(), err)
+			return
+		}
 
+		// commit transaction
+		if er := session.CommitTransaction(sc); er != nil {
+			Logger().Printf("committing mongo transaction failed: %s", er)
+			er = session.AbortTransaction(sc)
+			if er != nil {
+				Logger().Printf("aborting mongo transaction failed: %s", er)
+			}
+		}
+		return
+	})
 	return
 }
 

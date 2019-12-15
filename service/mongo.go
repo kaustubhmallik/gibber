@@ -2,16 +2,13 @@ package service
 
 import (
 	"context"
-	"fmt"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
 	"sync"
-	"time"
 )
-
-const ConnScheme = "mongodb"
 
 // mongodb query operators
 const (
@@ -29,34 +26,46 @@ const (
 	// see https://docs.mongodb.com/manual/reference/method/ObjectId.getTimestamp/#ObjectId.getTimestamp
 )
 
-var MongoHost = os.Getenv("GIBBER_MONGO_HOST")
-var MongoPort = os.Getenv("GIBBER_MONGO_PORT")
-var MongoUser = os.Getenv("GIBBER_MONGO_USER")
-var MongoPwd = os.Getenv("GIBBER_MONGO_PWD")
-var MongoDatabase = os.Getenv("GIBBER_MONGO_DB")
+var (
+	MongoConnScheme = os.Getenv("GIBBER_MONGO_CONN_SCHEME")
+	MongoHost       = os.Getenv("GIBBER_MONGO_HOST")
+	MongoPort       = os.Getenv("GIBBER_MONGO_PORT")
+	MongoUser       = os.Getenv("GIBBER_MONGO_USER")
+	MongoPwd        = os.Getenv("GIBBER_MONGO_PWD")
+	MongoDatabase   = os.Getenv("GIBBER_MONGO_DB")
+	MongoOptions    = os.Getenv("GIBBER_MONGO_OPTS") // retryWrites=true&w=majority
+)
 
 // instead of a generic client, return the target DB handler, to avoid selecting it again and again in each query
 var mongoConn *mongo.Database
 var initMongoConn sync.Once
 
+func init() {
+	initCollections()
+}
+
+// mongodb+srv://<username>:<password>@gibber-qiquc.gcp.mongodb.net/test?retryWrites=true&w=majority
 // initializes a new client, and set the target database handler
 func initMongoConnPool() {
-	var address string
+	addressURL := MongoConnScheme + "://"
 	if MongoUser != "" {
-		address = fmt.Sprintf("%s://%s:%s@%s:%s/%s", ConnScheme, MongoUser, MongoPwd, MongoHost,
-			MongoPort, MongoDatabase)
-	} else {
-		address = fmt.Sprintf("%s://%s:%s/%s", ConnScheme, MongoHost, MongoPort, MongoDatabase)
+		addressURL += MongoUser + ":" + MongoPwd + "@"
 	}
-	opts := options.Client().ApplyURI(address)
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	client, err := mongo.Connect(ctx, opts)
+	addressURL += MongoHost
+	if MongoPort != "" {
+		addressURL += ":" + MongoPort
+	}
+	addressURL += "/" + MongoDatabase
+	if MongoOptions != "" {
+		addressURL += "?" + MongoOptions
+	}
+	opts := options.Client().ApplyURI(addressURL)
+	client, err := mongo.Connect(context.Background(), opts)
 	if err != nil {
-		Logger().Fatalf("create mongo connection on %s pool failed: %s", address, err)
+		Logger().Fatalf("create mongo connection on %s pool failed: %s", addressURL, err)
 	} else {
-		Logger().Printf("mongo successfully connected on %s", address)
+		Logger().Printf("mongo successfully connected on %s", addressURL)
 	}
-	//mongoConn = client.Database(MongoDatabase)
 	mongoConn = client.Database("gibber")
 }
 
@@ -72,4 +81,26 @@ func SortObjectIDs(id1, id2 primitive.ObjectID) (primitive.ObjectID, primitive.O
 		return id1, id2
 	}
 	return id2, id1
+}
+
+func initCollections() {
+	mongoConn := MongoConn()
+	collections := []string{
+		UserCollection,
+		UserInvitesCollection,
+		FriendsCollection,
+		ChatCollection,
+	}
+	for _, coll := range collections {
+		count, err := mongoConn.Collection(coll).CountDocuments(context.Background(), bson.D{})
+		if err != nil {
+			Logger().Printf("%s count fetch failed: %s", coll, err)
+		}
+		if count == 0 {
+			_, err = mongoConn.Collection(coll).InsertOne(context.Background(), bson.D{})
+			if err != nil {
+				Logger().Printf("%s collection creation failed: %s", coll, err)
+			}
+		}
+	}
 }

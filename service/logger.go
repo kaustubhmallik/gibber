@@ -47,7 +47,7 @@ func WriteLog(log string, params ...interface{}) {
 			panic(fmt.Sprintf("error while initializing internal logger: %s", err))
 		}
 	})
-	logger.Printf(log, params)
+	logger.Print(log, params)
 }
 
 func Logger() *log.Logger {
@@ -61,5 +61,5 @@ func Logger() *log.Logger {
 
 func WriteLogAndReturnError(log string, params ...interface{}) error {
 	WriteLog(log, params)
-	return fmt.Errorf(log, params)
+	return fmt.Errorf(log, params...)
 }

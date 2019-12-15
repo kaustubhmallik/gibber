@@ -3,10 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/fatih/structs"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
-	"time"
 )
 
 const (
@@ -35,36 +33,6 @@ type Invite struct {
 	State    string // active, accepted, rejected
 }
 
-//func NewInvitesData() (inviteData InvitesData) {
-//	inviteData = InvitesData{
-//		Sent:     make([]Invite, 0),
-//		Received: make([]Invite, 0),
-//		Accepted: make([]Invite, 0),
-//		Rejected: make([]Invite, 0),
-//	}
-//	return
-//}
-
-func CreateInvitation(senderUserId, receiverUserId string) (objectId string, err error) {
-	invite := &Invite{
-		Sender:   senderUserId,
-		Receiver: receiverUserId,
-		State:    ActiveInvite,
-	}
-	inviteMap := MapLowercaseKeys(structs.Map(*invite))
-	res, err := MongoConn().Collection(InviteCollection).InsertOne(context.Background(), inviteMap)
-	if err != nil {
-		reason := fmt.Sprintf("error while creating new user invite %#v: %s", inviteMap, err)
-		err = errors.New(reason)
-		Logger().Printf(reason)
-	} else {
-		objectId = res.InsertedID.(string) // TODO: Check if it is mostly string (expected), change the id to string, and use reflection on InsertID
-		Logger().Printf("user invite %#v successfully created with id: %v", inviteMap, res)
-	}
-	return
-
-}
-
 func GetInvitation(inviteID string) (invite *Invite, err error) {
 	invite = &Invite{}
 	err = MongoConn().Collection(InviteCollection).FindOne(
@@ -84,9 +52,8 @@ func GetInvitation(inviteID string) (invite *Invite, err error) {
 // details of action taken
 func AlreadyConnected(senderUserId, receiverUserId string) (err error) {
 	// check if the user doesn't have an active sent invitation to invitedUser
-	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
 	count, err := MongoConn().Collection(InviteCollection).CountDocuments(
-		ctx,
+		context.Background(),
 		bson.M{
 			ObjectID:         senderUserId,
 			SentInvitesField: receiverUserId,
@@ -106,9 +73,8 @@ func AlreadyConnected(senderUserId, receiverUserId string) (err error) {
 	}
 
 	//check if the user doesn't have an active received invitation to invitedUser
-	ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
 	count, err = MongoConn().Collection(InviteCollection).CountDocuments(
-		ctx,
+		context.Background(),
 		bson.M{
 			ObjectID:             senderUserId,
 			ReceivedInvitesField: receiverUserId,
@@ -127,9 +93,8 @@ func AlreadyConnected(senderUserId, receiverUserId string) (err error) {
 	}
 
 	//check if the user doesn't have an accepted invitation from invitedUser
-	ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
 	count, err = MongoConn().Collection(InviteCollection).CountDocuments(
-		ctx,
+		context.Background(),
 		bson.M{
 			ObjectID:             senderUserId,
 			AcceptedInvitesField: receiverUserId,

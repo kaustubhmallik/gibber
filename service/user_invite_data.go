@@ -33,7 +33,7 @@ type UserInvites struct {
 	Cancelled []primitive.ObjectID `bson:"cancelled" json:"cancelled"` // cancelled sent requests by user
 }
 
-func CreateUserInvitesData(userId interface{}) (userInvitesDataId interface{}, err error) {
+func CreateUserInvitesData(userId interface{}, ctx context.Context) (userInvitesDataId interface{}, err error) {
 	userInvites := &UserInvites{
 		UserID:    userId.(primitive.ObjectID),
 		Sent:      make([]primitive.ObjectID, 0),
@@ -45,7 +45,7 @@ func CreateUserInvitesData(userId interface{}) (userInvitesDataId interface{}, e
 	userInvitesDataMap := GetMap(*userInvites)
 	userInvitesDataMap["user_id"] = userId.(primitive.ObjectID)
 	res, err := MongoConn().Collection(UserInvitesCollection).InsertOne(
-		context.Background(),
+		ctx,
 		userInvitesDataMap)
 	if err != nil {
 		reason := fmt.Sprintf("error creating user %s invites data: %s", userId, err)
