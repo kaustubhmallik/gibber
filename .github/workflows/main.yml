@@ -1,0 +1,16 @@
+name: CI
+
+on: 
+  pull_request:
+    branches: 
+      - master
+  push:
+    branches: 
+      - dev
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    steps:
+    - name: Build and run tests
+      run: make
