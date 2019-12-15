@@ -8,7 +8,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
 	"sync"
-	"time"
 )
 
 // mongodb query operators
@@ -61,8 +60,7 @@ func initMongoConnPool() {
 		addressURL += "?" + MongoOptions
 	}
 	opts := options.Client().ApplyURI(addressURL)
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Minute)
-	client, err := mongo.Connect(ctx, opts)
+	client, err := mongo.Connect(context.Background(), opts)
 	if err != nil {
 		Logger().Fatalf("create mongo connection on %s pool failed: %s", addressURL, err)
 	} else {
@@ -94,13 +92,12 @@ func initCollections() {
 		ChatCollection,
 	}
 	for _, coll := range collections {
-		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-		count, err := mongoConn.Collection(coll).CountDocuments(ctx, bson.D{})
+		count, err := mongoConn.Collection(coll).CountDocuments(context.Background(), bson.D{})
 		if err != nil {
 			Logger().Printf("%s count fetch failed: %s", coll, err)
 		}
 		if count == 0 {
-			_, err = mongoConn.Collection(coll).InsertOne(ctx, bson.D{})
+			_, err = mongoConn.Collection(coll).InsertOne(context.Background(), bson.D{})
 			if err != nil {
 				Logger().Printf("%s collection creation failed: %s", coll, err)
 			}

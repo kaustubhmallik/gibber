@@ -24,7 +24,7 @@ const (
 type Message struct {
 	Sender    primitive.ObjectID `json:"sender" bson:"sender"`
 	Text      string             `json:"text" bson:"text"`
-	Timestamp time.Time          `json:"timestamp, omitempty" bson:"timestamp"`
+	Timestamp time.Time          `json:"timestamp,omitempty" bson:"timestamp"`
 }
 
 type Chat struct {
@@ -41,8 +41,8 @@ func GetChatByUserIDs(userID1, userID2 primitive.ObjectID) (chat *Chat, err erro
 		Collection(ChatCollection).
 		FindOne(context.Background(),
 			bson.D{
-				{ChatUser1, userID1},
-				{ChatUser2, userID2},
+				{Key: ChatUser1, Value: userID1},
+				{Key: ChatUser2, Value: userID2},
 			}).
 		Decode(chat)
 	if err != nil {
@@ -84,11 +84,11 @@ func SendMessage(sender, receiver primitive.ObjectID, text string) (err error) {
 	sender, receiver = SortObjectIDs(sender, receiver)
 	res, err := MongoConn().Collection(ChatCollection).UpdateOne(context.Background(),
 		bson.D{
-			{ChatUser1, sender},
-			{ChatUser2, receiver},
+			{Key: ChatUser1, Value: sender},
+			{Key: ChatUser2, Value: receiver},
 		},
 		bson.D{
-			{MongoPushOperator, bson.D{{ChatMessages, msg}}},
+			{Key: MongoPushOperator, Value: bson.D{{Key: ChatMessages, Value: msg}}},
 		},
 		options.Update().SetUpsert(true))
 	if err != nil {

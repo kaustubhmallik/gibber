@@ -1,6 +1,6 @@
-all: build test githooks
+default: build test
 
-default: build
+all: bootstrap build test
 
 bootstrap: githooks
 

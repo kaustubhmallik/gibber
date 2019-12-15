@@ -109,7 +109,6 @@ func (c *Client) Authenticate() {
 	} else {
 		c.RegisterUser()
 	}
-	return
 }
 
 func (c *Client) PromptForEmail() {
@@ -377,7 +376,8 @@ func (c *Client) StarChat(friendID primitive.ObjectID) {
 func (c *Client) SendInvitation() {
 	c.SendMessage(SendInvitationInfo, true)
 	if c.Err != nil {
-		// TODO: Handle error
+		Logger().Printf("error sending invitation prompt to user %s: %s", c.User.Email, c.Err)
+		return
 	}
 	for {
 		email := c.SendAndReceiveMsg(EmailSearchPrompt, false, false)
@@ -395,7 +395,8 @@ func (c *Client) SendInvitation() {
 		c.SendMessage(fmt.Sprintf("Send invite to %s", email), false)
 		confirm := c.SendAndReceiveMsg("Confirm? (Y/n): ", false, true)
 		if c.Err != nil {
-			// TODO: handle error
+			Logger().Println(err)
+			return
 		}
 		if strings.ToLower(confirm) == "y" || confirm == "" {
 			err = c.User.SendInvitation(user)
@@ -486,6 +487,7 @@ func (c *Client) SeeActiveReceivedInvitations() {
 	c.SendMessage(fmt.Sprintf("Email: %s", inviteeUser.Email), true)
 	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false, true)
 	if c.Err != nil {
+		return
 	}
 	if strings.ToLower(confirm) == "y" || confirm == "" {
 		err = c.User.AddFriend(inviteeUser.ID)
@@ -534,10 +536,19 @@ func (c *Client) SeeActiveSentInvitations() {
 		c.SendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
 		return
 	}
+
 	// The user sees 1-based indexing, so reducing one from it
 	inviteeUser, err := GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
+	if err != nil {
+		Logger().Println(err)
+		return
+	}
+
 	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false, true)
 	if c.Err != nil {
+		c.Err = fmt.Errorf("canceling invitation failed: %s", c.Err)
+		c.SendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
+		return
 	}
 	if strings.ToLower(confirm) == "y" || confirm == "" {
 		err = c.User.CancelInvitation(inviteeUser)
@@ -587,8 +598,17 @@ func (c *Client) SeeInactiveReceivedInvitations() {
 	}
 	// The user sees 1-based indexing, so reducing one from it
 	inviteeUser, err := GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
+	if err != nil {
+		c.Err = fmt.Errorf("error fetching user %s details: %s", invites[invitationIdx-1], err)
+		Logger().Print(err)
+		return
+	}
+
 	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false, true)
 	if c.Err != nil {
+		c.Err = fmt.Errorf("error getting confirmation: %s", c.Err)
+		Logger().Print(err)
+		return
 	}
 	if strings.ToLower(confirm) == "y" || confirm == "" {
 		err = c.User.CancelInvitation(inviteeUser)
@@ -676,8 +696,9 @@ func (c *Client) ChangePassword() {
 func (c *Client) ChangeName() {
 	newFirstName := c.SendAndReceiveMsg("\nEnter your new first name(enter blank for skip): ", false, true)
 	if c.Err != nil {
-		//continue
-		// add retry
+		reason := fmt.Sprintf("error getting entered first name: %s", c.Err)
+		Logger().Println(reason)
+		return
 	}
 	if newFirstName == "" {
 		reason := fmt.Sprintf("skipping first name change for user %s", c.Email)
@@ -686,8 +707,9 @@ func (c *Client) ChangeName() {
 
 	newLastName := c.SendAndReceiveMsg("\nEnter your new last name(enter blank for skip): ", false, true)
 	if c.Err != nil {
-		//continue
-		// add retry
+		reason := fmt.Sprintf("error getting entered last name: %s", c.Err)
+		Logger().Println(reason)
+		return
 	}
 	if newLastName == "" {
 		reason := fmt.Sprintf("skipping first name change for user %s", c.Email)
@@ -702,7 +724,6 @@ func (c *Client) ChangeName() {
 	}
 
 	c.SendMessage("Name successfully updated\n", true)
-	return
 }
 
 func (c *Client) SeePersonalProfile() {

@@ -92,12 +92,11 @@ func CreateUser(user *User) (userId interface{}, err error) {
 			sc,
 			bson.M{ObjectID: userId},
 			bson.D{{
-				MongoSetOperator, bson.D{{InvitesDataField, invitesId}},
+				Key: MongoSetOperator, Value: bson.D{{Key: InvitesDataField, Value: invitesId}},
 			}})
 		if er != nil || updateRes.ModifiedCount != 1 {
-			reason := fmt.Sprintf("error while setting up invites data for user%s: %s", userId, err)
-			Logger().Println(reason)
-			er = errors.New(reason)
+			er = fmt.Errorf("error while setting up invites data for user%s: %s", userId, err)
+			Logger().Print(er)
 		}
 
 		// commit transaction
@@ -118,8 +117,7 @@ func CreateUser(user *User) (userId interface{}, err error) {
 func GetUserByEmail(email string) (user *User, err error) {
 	collection := MongoConn().Collection(UserCollection)
 	user = &User{}
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Minute)
-	err = collection.FindOne(ctx, bson.M{UserEmailField: email}).Decode(user)
+	err = collection.FindOne(context.Background(), bson.M{UserEmailField: email}).Decode(user)
 	if err == mongo.ErrNoDocuments {
 		reason := fmt.Sprintf("no user found with email: %s", email)
 		Logger().Println(reason)
@@ -220,9 +218,8 @@ func (user *User) ExistingUser() (exists bool) {
 		return
 	}
 	if err != nil { // some other error occurred
-		reason := fmt.Sprintf("user email unique check failed: %s", err)
-		Logger().Println(reason)
-		err = errors.New(reason)
+		err = fmt.Errorf("user email unique check failed: %s", err)
+		Logger().Println(err)
 		return
 	}
 	exists = true
@@ -352,15 +349,10 @@ func (user *User) Logout() (err error) {
 	result, err := MongoConn().Collection(UserCollection).UpdateOne(
 		context.Background(),
 		bson.D{
-			{
-				UserEmailField,
-				user.Email,
-			},
+			{Key: UserEmailField, Value: user.Email},
 		},
 		bson.D{
-			{
-				MongoSetOperator, bson.D{{UserLoggedIn, false}},
-			},
+			{Key: MongoSetOperator, Value: bson.D{{Key: UserLoggedIn, Value: false}}},
 		},
 	)
 	if err != nil {
@@ -394,15 +386,10 @@ func (u *User) SendInvitation(recv *User) (err error) {
 		result, er := MongoConn().Collection(UserInvitesCollection).UpdateOne(
 			sc,
 			bson.D{
-				{
-					UserIdField,
-					u.ID,
-				},
+				{Key: UserIdField, Value: u.ID},
 			},
 			bson.D{
-				{
-					MongoPushOperator, bson.D{{SentInvitesField, recv.ID}},
-				},
+				{Key: MongoPushOperator, Value: bson.D{{Key: SentInvitesField, Value: recv.ID}}},
 			},
 		)
 		if er != nil {
@@ -418,15 +405,10 @@ func (u *User) SendInvitation(recv *User) (err error) {
 		result, er = MongoConn().Collection(UserInvitesCollection).UpdateOne(
 			sc,
 			bson.D{
-				{
-					UserIdField,
-					recv.ID,
-				},
+				{Key: UserIdField, Value: recv.ID},
 			},
 			bson.D{
-				{
-					MongoPushOperator, bson.D{{ReceivedInvitesField, u.ID}},
-				},
+				{Key: MongoPushOperator, Value: bson.D{{Key: ReceivedInvitesField, Value: u.ID}}},
 			},
 		)
 		if er != nil {
@@ -475,7 +457,7 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 			sc,
 			bson.M{UserIdField: u.ID},
 			bson.D{
-				{MongoPullOperator, bson.D{{ReceivedInvitesField, userID}}},
+				{Key: MongoPullOperator, Value: bson.D{{Key: ReceivedInvitesField, Value: userID}}},
 			})
 		if er != nil {
 			_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
@@ -496,7 +478,7 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 			sc,
 			bson.M{UserIdField: userID},
 			bson.D{
-				{MongoPullOperator, bson.D{{SentInvitesField, u.ID}}},
+				{Key: MongoPullOperator, Value: bson.D{{Key: SentInvitesField, Value: u.ID}}},
 			})
 		if er != nil {
 			_ = session.AbortTransaction(sc)
@@ -518,7 +500,7 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 			sc,
 			bson.M{UserIdField: u.ID},
 			bson.D{
-				{MongoPushOperator, bson.D{{FriendsField, userID}}},
+				{Key: MongoPushOperator, Value: bson.D{{Key: FriendsField, Value: userID}}},
 			},
 			options.Update().SetUpsert(true))
 		if er != nil {
@@ -538,7 +520,7 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 			sc,
 			bson.M{UserIdField: userID},
 			bson.D{
-				{MongoPushOperator, bson.D{{FriendsField, u.ID}}},
+				{Key: MongoPushOperator, Value: bson.D{{Key: FriendsField, Value: u.ID}}},
 			},
 			options.Update().SetUpsert(true))
 		if err != nil {
