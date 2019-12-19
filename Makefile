@@ -4,10 +4,7 @@ all: bootstrap build test
 
 bootstrap: githooks
 
-clean:
-	rm -rf build
-
-build: clean
+build: 
 	mkdir -p build
 	go build -o build/gibber-server  cmd/server/main.go
 
