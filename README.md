@@ -1,4 +1,5 @@
 # Gibber
+[![Build Status](https://travis-ci.com/kaustubhmallik/gibber.png?branch=master)](https://travis-ci.com/kaustubhmallik/gibber)
 
 **Gibber** is a a simple chat application based on client-server model. The purpose of creating gibber is to make 
 chat (or "gibering"") effortless.
