@@ -12,5 +12,4 @@ type Friends struct {
 	ID        primitive.ObjectID   `bson:"_id" json:"-"`
 	UserID    primitive.ObjectID   `bson:"user_id" json:"user_id"`
 	FriendIDs []primitive.ObjectID `bson:"friend_ids" json:"friend_ids"`
-	// TODO: Add created and updated timestamp fields
 }

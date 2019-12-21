@@ -101,8 +101,10 @@ func CreateUser(user *User) (userId interface{}, err error) {
 				Key: MongoSetOperator, Value: bson.D{{Key: InvitesDataField, Value: invitesId}},
 			}})
 		if er != nil || updateRes.ModifiedCount != 1 {
-			er = fmt.Errorf("error while setting up invites data for user%s: %s", userId, err)
-			Logger().Print(er)
+			_ = session.AbortTransaction(sc)
+			Logger().Printf("error while setting up invites data for user%s: %s", userId, err)
+			err = NoDocUpdate
+			return er
 		}
 
 		// commit transaction
@@ -125,13 +127,11 @@ func GetUserByEmail(email string) (user *User, err error) {
 	user = &User{}
 	err = collection.FindOne(context.Background(), bson.M{UserEmailField: email}).Decode(user)
 	if err == mongo.ErrNoDocuments {
-		reason := fmt.Sprintf("no user found with email: %s", email)
-		Logger().Println(reason)
+		Logger().Printf("no user found with email: %s", email)
 		// no changes in error so that it can be used to verify unique email ID before insertion
 	} else if err != nil {
-		reason := fmt.Sprintf("decoding(unmarshal) user fetch result for email %s failed: %s", email, err)
-		Logger().Println(reason)
-		err = errors.New(reason)
+		Logger().Printf("decoding(unmarshal) user fetch result for email %s failed: %s", email, err)
+		err = FetchUserFailed
 	}
 	return
 }
@@ -144,11 +144,11 @@ func GetUserByID(objectID primitive.ObjectID) (user *User, err error) {
 		Decode(user)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			err = fmt.Errorf("no user found with ID: %s", objectID.String())
+			Logger().Printf("no user found with ID: %s", objectID.String())
 		} else {
-			err = fmt.Errorf("decoding(unmarshal) user fetch result for email %s failed: %s", objectID.String(), err)
+			Logger().Printf("decoding(unmarshal) user fetch result for email %s failed", objectID.String())
+			err = NoDocUpdate
 		}
-		Logger().Println(err)
 	}
 	return
 }
@@ -157,16 +157,12 @@ func GetUserByID(objectID primitive.ObjectID) (user *User, err error) {
 func (u *User) LoginUser(password string) (lastLogin string, err error) {
 	fetchDBUser, err := GetUserByEmail(u.Email)
 	if err != nil {
-		reason := fmt.Sprintf("authenticate u failed: %s", err)
-		Logger().Println(reason)
-		err = errors.New(reason)
+		Logger().Printf("authenticate u failed: %s", err)
 		return
 	}
 	err = MatchHashAndPlainText(fetchDBUser.Password, password)
 	if err != nil {
-		//reason := PasswordMismatch
 		Logger().Print(err)
-		//err = errors.New(reason) // TODO: May be we can create a new collection just to store credential and other auth related data
 		return
 	}
 
@@ -195,14 +191,11 @@ func (u *User) LoginUser(password string) (lastLogin string, err error) {
 		},
 	)
 	if err != nil {
-		reason := fmt.Sprintf("error while logging out u %s: %s", u.Email, err)
-		Logger().Println(reason)
-		err = errors.New(reason)
+		Logger().Printf("error while logging out u %s: %s", u.Email, err)
 		return
-	} else if result.MatchedCount != 1 { // TODO: should we check for logging status to change
-		reason := fmt.Sprintf("error while logging out u %s: %s", u.Email, err)
-		Logger().Println(reason)
-		err = errors.New(reason)
+	} else if result.MatchedCount != 1 {
+		Logger().Printf("error while logging out %s as no doc updated for", u.Email)
+		err = NoDocUpdate
 		return
 	}
 
@@ -224,8 +217,7 @@ func (u *User) ExistingUser() (exists bool) {
 		return
 	}
 	if err != nil { // some other error occurred
-		err = fmt.Errorf("u email unique check failed: %s", err)
-		Logger().Println(err)
+		Logger().Printf("u email unique check failed: %s", err)
 		return
 	}
 	exists = true
@@ -253,12 +245,9 @@ func (u *User) UpdatePassword(newEncryptedPassword string) (err error) {
 			},
 		})
 	if err != nil {
-		reason := fmt.Sprintf("password update failed for u %s: %s", u.Email, err)
-		Logger().Println(reason)
-		err = errors.New(reason)
+		Logger().Printf("password update failed for u %s: %s", u.Email, err)
 	} else {
-		reason := fmt.Sprintf("password update successful for u %s: %+v", u.Email, result)
-		Logger().Println(reason)
+		Logger().Printf("password update successful for u %s: %+v", u.Email, result)
 	}
 	return
 }
@@ -291,8 +280,7 @@ func (u *User) UpdateName(firstName, lastName string) (err error) {
 			},
 		}
 	} else { // nothing to update
-		reason := "nothing to update as both firstName and lastName are blank"
-		Logger().Println(reason)
+		Logger().Println("nothing to update as both firstName and lastName are blank")
 		return
 	}
 	result, err := MongoConn().Collection(UserCollection).UpdateOne(
@@ -306,12 +294,9 @@ func (u *User) UpdateName(firstName, lastName string) (err error) {
 		bson.D{{Key: MongoSetOperator, Value: updatedDoc}},
 	)
 	if err != nil {
-		reason := fmt.Sprintf("name update failed for u %s: %s", u.Email, err)
-		Logger().Println(reason)
-		err = errors.New(reason)
+		Logger().Printf("name update failed for u %s: %s", u.Email, err)
 	} else {
-		reason := fmt.Sprintf("name update successful for u %s: %+v", u.Email, result)
-		Logger().Println(reason)
+		Logger().Printf("name update successful for u %s: %+v", u.Email, result)
 	}
 	return
 }
@@ -362,14 +347,11 @@ func (u *User) Logout() (err error) {
 		},
 	)
 	if err != nil {
-		reason := fmt.Sprintf("error while logging out u %s: %s", u.Email, err)
-		Logger().Println(reason)
-		err = errors.New(reason)
+		Logger().Printf("error while logging out u %s: %s", u.Email, err)
 		return
 	} else if result.ModifiedCount != 1 {
-		reason := fmt.Sprintf("error while logging out u %s: %s", u.Email, err)
-		Logger().Println(reason)
-		err = errors.New(reason)
+		Logger().Printf("error while logging out u %s", u.Email)
+		err = NoDocUpdate
 		return
 	}
 	return
@@ -404,8 +386,7 @@ func (u *User) SendInvitation(recv *User) (err error) {
 			Logger().Println(er)
 		} else if result.ModifiedCount != 1 {
 			_ = session.AbortTransaction(sc)
-			reason := fmt.Sprintf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
-			Logger().Println(reason)
+			Logger().Printf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
 		}
 
 		result, er = MongoConn().Collection(UserInvitesCollection).UpdateOne(
@@ -468,15 +449,14 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 		if er != nil {
 			_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
 			if er == mongo.ErrNoDocuments {
-				er = fmt.Errorf("invite data not found for invite accepting u %s", u.ID.String())
+				Logger().Printf("invite data not found for invite accepting u %s", u.ID.String())
 			} else {
-				er = fmt.Errorf("invite data fetch failed for invite accepting u %s: %s", u.ID.String(), er)
+				Logger().Printf("invite data fetch failed for invite accepting u %s: %s", u.ID.String(), er)
 			}
-			Logger().Print(er)
 			return
 		} else if res.ModifiedCount != 1 {
-			er = fmt.Errorf("invite data not updated for invite accepting u %s", u.ID.String())
-			Logger().Print(er)
+			Logger().Printf("invite data not updated for invite accepting u %s", u.ID.String())
+			er = NoDocUpdate
 			return
 		}
 
@@ -489,15 +469,14 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 		if er != nil {
 			_ = session.AbortTransaction(sc)
 			if er == mongo.ErrNoDocuments {
-				er = fmt.Errorf("invite data not found for invite sending u %s", u.ID.String())
+				Logger().Printf("invite data not found for invite sending u %s", u.ID.String())
 			} else {
-				er = fmt.Errorf("invite data fetch failed for invite sending u %s: %s", u.ID.String(), er)
+				Logger().Printf("invite data fetch failed for invite sending u %s: %s", u.ID.String(), er)
 			}
-			Logger().Print(er)
 			return
 		} else if res.ModifiedCount != 1 {
-			er = fmt.Errorf("invite data not updated for invite sending u %s", userID.String())
-			Logger().Print(er)
+			Logger().Printf("invite data not updated for invite sending u %s", userID.String())
+			err = NoDocUpdate
 			return
 		}
 
@@ -511,13 +490,11 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 			options.Update().SetUpsert(true))
 		if er != nil {
 			_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
-			er = fmt.Errorf("error while adding %s as friend for %s: %s", userID.String(), u.ID.String(), er)
-			Logger().Print(er)
+			Logger().Printf("error while adding %s as friend for %s: %s", userID.String(), u.ID.String(), er)
 			return
 		} else if res.ModifiedCount+res.UpsertedCount != 1 {
-			er = fmt.Errorf("document not created/updated to add %s as friend for %s: %s", userID.String(),
-				u.ID.String(), er)
-			Logger().Print(er)
+			Logger().Printf("document not created/updated to add %s as friend for %s", userID.String(), u.ID.String())
+			err = NoDocUpdate
 			return
 		}
 
@@ -531,12 +508,12 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 			options.Update().SetUpsert(true))
 		if err != nil {
 			_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
-			err = fmt.Errorf("error while adding %s as friend for %s: %s", u.ID.String(), userID.String(), err)
-			Logger().Print(err)
+			Logger().Printf("error while adding %s as friend for %s: %s", u.ID.String(), userID.String(), err)
 			return
 		} else if res.ModifiedCount+res.UpsertedCount != 1 {
-			err = fmt.Errorf("document not created/updated to add %s as friend for %s: %s", u.ID.String(),
-				userID.String(), err)
+			Logger().Printf("document not created/updated to add %s as friend for %s", u.ID.String(),
+				userID.String())
+			err = NoDocUpdate
 			return
 		}
 
@@ -561,11 +538,10 @@ func (u *User) GetSentInvitations() (invites []primitive.ObjectID, err error) {
 		Decode(&invitesData)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			err = fmt.Errorf("invite data not found for u %s", u.ID.String())
+			Logger().Printf("invite data not found for u %s", u.ID.String())
 		} else {
-			err = fmt.Errorf("invite data fetch failed for u %s: %s", u.ID.String(), err)
+			Logger().Printf("invite data fetch failed for u %s: %s", u.ID.String(), err)
 		}
-		Logger().Print(err)
 		return
 	}
 	invites = invitesData.Sent
@@ -580,11 +556,10 @@ func (u *User) GetReceivedInvitations() (invites []primitive.ObjectID, err error
 		Decode(&invitesData)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			err = fmt.Errorf("invite data not found for u %s", u.ID.String())
+			Logger().Printf("invite data not found for u %s", u.ID.String())
 		} else {
-			err = fmt.Errorf("invite data fetch failed for u %s: %s", u.ID.String(), err)
+			Logger().Printf("invite data fetch failed for u %s: %s", u.ID.String(), err)
 		}
-		Logger().Print(err)
 		return
 	}
 	invites = invitesData.Received
@@ -599,11 +574,10 @@ func (u *User) GetCanceledSentInvitations() (invites []primitive.ObjectID, err e
 		Decode(&invitesData)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			err = fmt.Errorf("invite data not found for u %s", u.ID.String())
+			Logger().Printf("invite data not found for u %s", u.ID.String())
 		} else {
-			err = fmt.Errorf("invite data fetch failed for u %s: %s", u.ID.String(), err)
+			Logger().Printf("invite data fetch failed for u %s: %s", u.ID.String(), err)
 		}
-		Logger().Print(err)
 		return
 	}
 	invites = invitesData.Cancelled
@@ -618,11 +592,10 @@ func (u *User) GetAcceptedInvitations() (invites []primitive.ObjectID, err error
 		Decode(&invitesData)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			err = fmt.Errorf("invite data not found for u %s", u.ID.String())
+			Logger().Printf("invite data not found for u %s", u.ID.String())
 		} else {
-			err = fmt.Errorf("invite data fetch failed for u %s: %s", u.ID.String(), err)
+			Logger().Printf("invite data fetch failed for u %s: %s", u.ID.String(), err)
 		}
-		Logger().Print(err)
 		return
 	}
 	invites = invitesData.Accepted
@@ -637,11 +610,10 @@ func (u *User) GetRejectedInvitations() (invites []primitive.ObjectID, err error
 		Decode(&invitesData)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			err = fmt.Errorf("invite data not found for u %s", u.ID.String())
+			Logger().Printf("invite data not found for u %s", u.ID.String())
 		} else {
-			err = fmt.Errorf("invite data fetch failed for u %s: %s", u.ID.String(), err)
+			Logger().Printf("invite data fetch failed for u %s: %s", u.ID.String(), err)
 		}
-		Logger().Print(err)
 		return
 	}
 	invites = invitesData.Rejected
@@ -661,11 +633,10 @@ func (u *User) SeeFriends() (friends []primitive.ObjectID, err error) {
 		Decode(&friendData)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			err = fmt.Errorf("friends data not found for u %s", u.ID.String())
+			Logger().Printf("friends data not found for u %s", u.ID.String())
 		} else {
-			err = fmt.Errorf("friends data fetch failed for u %s: %s", u.ID.String(), err)
+			Logger().Printf("friends data fetch failed for u %s: %s", u.ID.String(), err)
 		}
-		Logger().Print(err)
 		return
 	}
 	friends = friendData.FriendIDs
