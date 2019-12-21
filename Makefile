@@ -1,16 +1,28 @@
-default: build test
+BIN_PATH=build/gibber-server
+BUILD_PATH=cmd/server/main.go
+MK_BUILD_PATH=test -d build || mkdir -p build
+GO_CMD=go
+GO_BUILD=$(GO_CMD) build -o $(BIN_PATH) $(BUILD_PATH)
+GO_TEST=$(GO_CMD) test ./...
+GO_TEST_COVER=$(GO_TEST) --cover cover.out
+GIT_HOOKS=git config --local core.hooksPath .githooks/
 
-all: bootstrap build test
+default: build test test_cover
+
+all: bootstrap default
 
 bootstrap: githooks
 
 build: 
-	mkdir -p build
-	go build -o build/gibber-server  cmd/server/main.go
+	$(MK_BUILD_PATH)
+	$(GO_BUILD)
 
 test:	
-	go test ./...
+	$(GO_TEST)
+
+test_cover:
+	$(GO_TEST_COVER)
 
 .PHONY: .githooks
 githooks:
-	git config --local core.hooksPath .githooks/
+	GIT_HOOKS
