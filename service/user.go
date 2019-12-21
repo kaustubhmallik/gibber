@@ -26,6 +26,16 @@ const (
 
 const ValidEmailRegex = `^[\w\.=-]+@[\w\.-]+\.[\w]{2,3}$`
 
+type InviteType string
+
+const (
+	Sent      InviteType = "sent"
+	Received  InviteType = "received"
+	Accepted  InviteType = "accepted"
+	Rejected  InviteType = "rejected"
+	Cancelled InviteType = "cancelled"
+)
+
 // User details
 type User struct {
 	ID        primitive.ObjectID `bson:"_id" json:"-"`
@@ -529,94 +539,24 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 	return
 }
 
-func (u *User) GetSentInvitations() (invites []primitive.ObjectID, err error) {
-	invitesData := UserInvites{}
-	err = MongoConn().Collection(UserInvitesCollection).FindOne(
-		context.Background(),
-		bson.M{UserIdField: u.ID}).
-		Decode(&invitesData)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			Logger().Printf("invite data not found for u %s", u.ID.String())
-		} else {
-			Logger().Printf("invite data fetch failed for u %s: %s", u.ID.String(), err)
-		}
-		return
-	}
-	invites = invitesData.Sent
-	return
+func (u *User) GetSentInvitations() ([]primitive.ObjectID, error) {
+	return u.getInvitations(Sent)
 }
 
-func (u *User) GetReceivedInvitations() (invites []primitive.ObjectID, err error) {
-	invitesData := UserInvites{}
-	err = MongoConn().Collection(UserInvitesCollection).FindOne(
-		context.Background(),
-		bson.M{UserIdField: u.ID}).
-		Decode(&invitesData)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			Logger().Printf("invite data not found for u %s", u.ID.String())
-		} else {
-			Logger().Printf("invite data fetch failed for u %s: %s", u.ID.String(), err)
-		}
-		return
-	}
-	invites = invitesData.Received
-	return
+func (u *User) GetReceivedInvitations() ([]primitive.ObjectID, error) {
+	return u.getInvitations(Received)
 }
 
-func (u *User) GetCanceledSentInvitations() (invites []primitive.ObjectID, err error) {
-	invitesData := UserInvites{}
-	err = MongoConn().Collection(UserInvitesCollection).FindOne(
-		context.Background(),
-		bson.M{UserIdField: u.ID}).
-		Decode(&invitesData)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			Logger().Printf("invite data not found for u %s", u.ID.String())
-		} else {
-			Logger().Printf("invite data fetch failed for u %s: %s", u.ID.String(), err)
-		}
-		return
-	}
-	invites = invitesData.Cancelled
-	return
+func (u *User) GetCanceledSentInvitations() ([]primitive.ObjectID, error) {
+	return u.getInvitations(Cancelled)
 }
 
-func (u *User) GetAcceptedInvitations() (invites []primitive.ObjectID, err error) {
-	invitesData := UserInvites{}
-	err = MongoConn().Collection(UserInvitesCollection).FindOne(
-		context.Background(),
-		bson.M{UserIdField: u.ID}).
-		Decode(&invitesData)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			Logger().Printf("invite data not found for u %s", u.ID.String())
-		} else {
-			Logger().Printf("invite data fetch failed for u %s: %s", u.ID.String(), err)
-		}
-		return
-	}
-	invites = invitesData.Accepted
-	return
+func (u *User) GetAcceptedInvitations() ([]primitive.ObjectID, error) {
+	return u.getInvitations(Accepted)
 }
 
-func (u *User) GetRejectedInvitations() (invites []primitive.ObjectID, err error) {
-	invitesData := UserInvites{}
-	err = MongoConn().Collection(UserInvitesCollection).FindOne(
-		context.Background(),
-		bson.M{UserIdField: u.ID}).
-		Decode(&invitesData)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			Logger().Printf("invite data not found for u %s", u.ID.String())
-		} else {
-			Logger().Printf("invite data fetch failed for u %s: %s", u.ID.String(), err)
-		}
-		return
-	}
-	invites = invitesData.Rejected
-	return
+func (u *User) GetRejectedInvitations() ([]primitive.ObjectID, error) {
+	return u.getInvitations(Rejected)
 }
 
 func (u *User) CancelInvitation(user *User) error {
@@ -670,4 +610,35 @@ func (u *User) ShowChat(friendID primitive.ObjectID) (content string, timestamp 
 
 func ValidUserEmail(email string) bool {
 	return regexp.MustCompile(ValidEmailRegex).MatchString(email)
+}
+
+func (u *User) getInvitations(invType InviteType) (invites []primitive.ObjectID, err error) {
+	invitesData := UserInvites{}
+	err = MongoConn().Collection(UserInvitesCollection).FindOne(
+		context.Background(),
+		bson.M{UserIdField: u.ID}).
+		Decode(&invitesData)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			Logger().Printf("invite data not found for u %s", u.ID.String())
+		} else {
+			Logger().Printf("invite data fetch failed for u %s: %s", u.ID.String(), err)
+		}
+		return
+	}
+	switch invType {
+	case Sent:
+		invites = invitesData.Sent
+	case Received:
+		invites = invitesData.Received
+	case Accepted:
+		invites = invitesData.Accepted
+	case Rejected:
+		invites = invitesData.Rejected
+	case Cancelled:
+		invites = invitesData.Cancelled
+	default:
+		err = fmt.Errorf("invalid invite type %s", invType)
+	}
+	return
 }
