@@ -146,8 +146,7 @@ func GetUserByID(objectID primitive.ObjectID) (user *User, err error) {
 		if err == mongo.ErrNoDocuments {
 			Logger().Printf("no user found with ID: %s", objectID.String())
 		} else {
-			Logger().Printf("decoding(unmarshal) user fetch result for email %s failed", objectID.String())
-			err = NoDocUpdate
+			Logger().Printf("decoding(unmarshal) user fetch result for email %s failed: %s", objectID.String(), err)
 		}
 	}
 	return
