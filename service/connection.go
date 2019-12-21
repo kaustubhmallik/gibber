@@ -2,8 +2,6 @@ package service
 
 import (
 	"bufio"
-	"errors"
-	"fmt"
 	"net"
 	"strings"
 )
@@ -23,16 +21,12 @@ func (c *Connection) SendMessage(msg string, newline bool) {
 	}
 	_, c.Err = c.Writer.WriteString(msg)
 	if c.Err != nil {
-		reason := fmt.Sprintf("error while writing to %s: %s", (*c.Conn).RemoteAddr(), c.Err)
-		c.Err = errors.New(reason)
-		Logger().Printf(reason)
+		Logger().Printf("error while writing to %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 		return
 	}
 	c.Err = c.Writer.Flush()
 	if c.Err != nil {
-		reason := fmt.Sprintf("error while flushing data to %s: %s", (*c.Conn).RemoteAddr(), c.Err)
-		c.Err = errors.New(reason)
-		Logger().Printf(reason)
+		Logger().Printf("error while flushing data to %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 		return
 	}
 }

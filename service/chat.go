@@ -16,9 +16,6 @@ const (
 	ChatUser1      = "user_1"
 	ChatUser2      = "user_2"
 	ChatMessages   = "messages"
-	//MessageSender    = "sender"
-	//MessageText      = "text"
-	//MessageTimestamp = "timestamp"
 )
 
 type Message struct {
@@ -47,33 +44,13 @@ func GetChatByUserIDs(userID1, userID2 primitive.ObjectID) (chat *Chat, err erro
 		Decode(chat)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			err = fmt.Errorf("no chat found with user IDs %s and %s", userID1.String(), userID2.String())
+			Logger().Printf("no chat found with user IDs %s and %s", userID1, userID2)
 		} else {
-			err = fmt.Errorf("decoding(unmarshal) chat result for users %s and %s failed: %s",
-				userID1.String(), userID2.String(), err)
+			Logger().Printf("decoding(unmarshal) chat result for users %s and %s failed: %s", userID1, userID2, err)
 		}
-		Logger().Println(err)
 	}
 	return
 }
-
-//func GetChatByObjID(ID primitive.ObjectID) (chat *Chat, err error) {
-//	chat = &Chat{}
-//	err = MongoConn().
-//		Collection(ChatCollection).
-//		FindOne(context.Background(),
-//			bson.M{ObjectID: ID}).
-//		Decode(chat)
-//	if err != nil {
-//		if err == mongo.ErrNoDocuments {
-//			err = fmt.Errorf("no chat found with ID: %s", ID.String())
-//		} else {
-//			err = fmt.Errorf("decoding(unmarshal) chat result with ID %s failed: %s", ID.String(), err)
-//		}
-//		Logger().Println(err)
-//	}
-//	return
-//}
 
 func SendMessage(sender, receiver primitive.ObjectID, text string) (err error) {
 	msg := Message{
@@ -92,13 +69,10 @@ func SendMessage(sender, receiver primitive.ObjectID, text string) (err error) {
 		},
 		options.Update().SetUpsert(true))
 	if err != nil {
-		err = fmt.Errorf("error while sending msg from %s to %s: %s", sender.String(), receiver.String(), err)
-		Logger().Print(err)
-		return
+		Logger().Printf("error while sending msg from %s to %s: %s", sender, receiver, err)
 	} else if res.ModifiedCount+res.UpsertedCount != 1 {
-		err = fmt.Errorf("document not created/updated while sending msg from %s to %s", sender.String(),
-			receiver.String())
-		return
+		Logger().Printf("document not created/updated while sending msg from %s to %s", sender, receiver)
+		err = NoDocUpdate
 	}
 	return
 }
@@ -117,7 +91,7 @@ func PrintMessage(msg Message, self, other *User) string {
 func fetchIncomingMessages(timestamp time.Time, self, other primitive.ObjectID) (msgs []Message, err error) {
 	chat, err := GetChatByUserIDs(self, other)
 	if err != nil {
-		Logger().Print(err)
+		Logger().Printf("error fetching chat for user %s: %s", self, err)
 		return
 	}
 	msgs = make([]Message, 0)

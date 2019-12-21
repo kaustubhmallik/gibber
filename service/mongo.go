@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -32,6 +33,10 @@ var (
 	MongoPwd        = os.Getenv("GIBBER_MONGO_PWD")
 	MongoDatabase   = os.Getenv("GIBBER_MONGO_DB")
 	MongoOptions    = os.Getenv("GIBBER_MONGO_OPTS") // retryWrites=true&w=majority
+)
+
+var (
+	NoDocUpdate = errors.New("no document updated")
 )
 
 // instead of a generic client, return the target DB handler, to avoid selecting it again and again in each query
