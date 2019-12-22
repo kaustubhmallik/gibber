@@ -10,12 +10,9 @@ chat (or "gibbering"") effortless.
 
 ### Built With
 
-This is an under development project, and will be released by the end of Sep, 2018. It is currently being built using 
-these things: 
-
+This is an under development project, and will be released soon. Following are the major components I am using currently: 
 * [Go](https://golang.org/) v1.13.4 
 * [MongoDB](https://docs.mongodb.com/manual/release-notes/4.2/#release-notes-for-mongodb-4-2) v4.2.1
-* [Mongo-go-driver](https://github.com/mongodb/mongo-go-driver/tree/v1.1.3) v1.1.3
 
 
 ### Contributors
