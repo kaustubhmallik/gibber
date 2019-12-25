@@ -20,7 +20,7 @@ func StartServer() error {
 		return WriteLogAndReturnError("error in starting listener on host %s and port %s: %s", Host, Port, err)
 	}
 	Logger().Printf("started TCP listener on %s", address)
-	PrintLogo()
+	_ = PrintLogo()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {

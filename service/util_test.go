@@ -1,9 +1,18 @@
 package service
 
 import (
+	"encoding/json"
 	"github.com/stretchr/testify/assert"
+	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestProjectRootPath(t *testing.T) {
+	path := ProjectRootPath()
+	assert.True(t, len(path) > 0, "project root path should be non-empty")
+	assert.True(t, strings.HasSuffix(path, "gibber/"), "project root path should end with project name")
+}
 
 func TestGetMap(t *testing.T) {
 	tests := []struct {
@@ -22,6 +31,7 @@ func TestGetMap(t *testing.T) {
 			expected: map[string]interface{}{
 				"foo": "bar",
 			},
+			err: nil,
 		},
 		{
 			name: "double field struct",
@@ -36,6 +46,7 @@ func TestGetMap(t *testing.T) {
 				"foo":  "bar",
 				"foo2": "bar2",
 			},
+			err: nil,
 		},
 		{
 			name: "different types of field struct",
@@ -56,16 +67,24 @@ func TestGetMap(t *testing.T) {
 				"foo3": float64(123),
 				"foo4": true,
 			},
+			err: nil,
 		},
 		{
 			name:     "nil data",
 			input:    nil,
 			expected: *new(map[string]interface{}), // its an empty map[string]interface{} with value as nil (but type is already defined)
+			err:      nil,
+		},
+		{
+			name:     "nil data",
+			input:    func() {},
+			expected: *new(map[string]interface{}), // its an empty map[string]interface{} with value as nil (but type is already defined)
+			err:      new(json.UnsupportedTypeError),
 		},
 	}
 	for _, tc := range tests {
 		actual, err := GetMap(tc.input)
-		assert.NoError(t, tc.err, err, "test %s failed", tc.name)
+		assert.Equal(t, reflect.TypeOf(tc.err), reflect.TypeOf(err), "test %s failed", tc.name)
 		assert.Equal(t, tc.expected, actual, "test %s failed", tc.name)
 	}
 }

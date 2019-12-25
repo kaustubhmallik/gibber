@@ -13,3 +13,7 @@ type Friends struct {
 	UserID    primitive.ObjectID   `bson:"user_id" json:"user_id"`
 	FriendIDs []primitive.ObjectID `bson:"friend_ids" json:"friend_ids"`
 }
+
+func NewFriends() *Friends {
+	return new(Friends)
+}

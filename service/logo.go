@@ -6,11 +6,13 @@ import (
 
 const LogoFilePath = "service/logo.txt"
 
-func PrintLogo() {
+func PrintLogo() (err error) {
 	filePath := ProjectRootPath() + LogoFilePath
 	logoData, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		Logger().Printf("reading logo file %s filed failed: %s", filePath, err)
+		return
 	}
 	Logger().Println(string(logoData[:]))
+	return
 }
