@@ -42,3 +42,10 @@ func TestCreateUserInvitesData(t *testing.T) {
 		}
 	}
 }
+
+func TestUserInvites_String(t *testing.T) {
+	ui := new(UserInvites)
+	assert.Equal(t, primitive.ObjectID{}.String(), ui.String(), "uninitialized object ID should be empty string")
+	ui.ID = primitive.NewObjectID()
+	assert.True(t, ui.String() != primitive.ObjectID{}.String(), "initialized object ID should be non-empty string")
+}
