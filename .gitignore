@@ -14,6 +14,7 @@ gibber
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+coverage.txt
 
 # Ignore personalized .gitconfig
 .gitconfig
