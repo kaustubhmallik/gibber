@@ -34,3 +34,6 @@ generated
 
 # ENV configs
 gibber.env
+
+#ignore local test ENV config
+gibber_local.conf

@@ -28,7 +28,6 @@ const (
 var (
 	MongoConnScheme = os.Getenv("GIBBER_MONGO_CONN_SCHEME")
 	MongoHost       = os.Getenv("GIBBER_MONGO_HOST")
-	MongoPort       = os.Getenv("GIBBER_MONGO_PORT")
 	MongoUser       = os.Getenv("GIBBER_MONGO_USER")
 	MongoPwd        = os.Getenv("GIBBER_MONGO_PWD")
 	MongoDatabase   = os.Getenv("GIBBER_MONGO_DB")
@@ -55,9 +54,6 @@ func initMongoConnPool() {
 		addressURL += MongoUser + ":" + MongoPwd + "@"
 	}
 	addressURL += MongoHost
-	if MongoPort != "" {
-		addressURL += ":" + MongoPort
-	}
 	addressURL += "/" + MongoDatabase
 	if MongoOptions != "" {
 		addressURL += "?" + MongoOptions
