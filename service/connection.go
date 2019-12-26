@@ -31,7 +31,7 @@ func (c *Connection) SendMessage(msg string, newline bool) {
 	}
 }
 
-// reads a single line from reader
+// reads a single line from scanner
 func (c *Connection) ReadMessage() (content string) {
 	content, c.Err = c.Reader.ReadString('\n')
 	content = strings.TrimRight(content, "\n")

@@ -1,16 +1,84 @@
 package service
 
-import "testing"
+// Testing the functionality as a client i.e. from client-end
 
-func TestClient_ShowWelcomeMessage(t *testing.T) {
+import (
+	"bufio"
+	"github.com/stretchr/testify/assert"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"log"
+	"net"
+	"testing"
+)
+
+var scanner *bufio.Scanner
+var writer *bufio.Writer
+
+func init() {
+	go func() {
+		_ = StartServer("localhost", "44510")
+	}()
+
+	//connect to server
+	conn, err := net.Dial("tcp", "localhost:44510")
+	if err != nil || conn == nil {
+		log.Fatal("unable to connect to tcp server")
+	}
+
+	scanner = bufio.NewScanner(conn)
+	writer = bufio.NewWriter(conn)
 }
 
-func TestClient_Authenticate(t *testing.T) {
+func TestClient(t *testing.T) {
+	password := "password"
+	hashPassword, _ := GenerateHash(password)
+	user := &User{
+		ID:        primitive.NewObjectID(),
+		FirstName: "John",
+		LastName:  "Doe",
+		Email:     "john" + RandomString(20) + "@doe.com",
+		Password:  hashPassword,
+	}
 
+	userID, err := CreateUser(user)
+	assert.NoError(t, err, "user creation failed")
+	user.ID = userID.(primitive.ObjectID)
+
+	for !scanner.Scan() {
+		t.Log(scanner.Text())
+	}
+	// correct email
+	_, err = writer.WriteString(user.Email + "\n")
+	assert.NoError(t, err, "writing email failed")
+	err = writer.Flush()
+	assert.NoError(t, err, "writing email failed")
+
+	for !scanner.Scan() {
+		t.Log(scanner.Text())
+	}
+	// wrong password
+	_, err = writer.WriteString("invalid password" + "\n")
+	assert.NoError(t, err, "writing password failed")
+	err = writer.Flush()
+	assert.NoError(t, err, "writing password failed")
+
+	for !scanner.Scan() {
+		t.Log(scanner.Text())
+	}
+	// correct password
+	_, err = writer.WriteString(password + "\n")
+	assert.NoError(t, err, "writing password failed")
+	err = writer.Flush()
+	assert.NoError(t, err, "writing password failed")
+
+	// login completed
+	_, err = writer.WriteString("0" + "\n")
+	assert.NoError(t, err, "writing password failed")
+
+	// connection closed from server as exit option selected
 }
 
 func TestClient_PromptForEmail(t *testing.T) {
-
 }
 
 func TestClient_ExistingUser(t *testing.T) {
@@ -18,7 +86,6 @@ func TestClient_ExistingUser(t *testing.T) {
 }
 
 func TestClient_LoginUser(t *testing.T) {
-
 }
 
 func TestClient_RegisterUser(t *testing.T) {
