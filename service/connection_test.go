@@ -12,8 +12,8 @@ import (
 var conn *Connection
 
 const (
-	Host = "127.0.0.1"
-	Port = "12000"
+	Host = "0.0.0.0"
+	Port = "12197"
 )
 
 func init() {
