@@ -28,4 +28,4 @@ test_cover:
 
 .PHONY: .githooks
 githooks:
-	GIT_HOOKS
+	$(GIT_HOOKS)

@@ -9,6 +9,6 @@ branches:
 script:
   - source gibber_test.conf
   - make build
-  - go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
+  - go test -count=1 -coverprofile=coverage.txt ./...
 after_success:
   - bash <(curl -s https://codecov.io/bash)
