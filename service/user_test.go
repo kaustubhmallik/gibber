@@ -4,6 +4,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"testing"
+	"time"
 )
 
 func TestCreateUser(t *testing.T) {
@@ -168,15 +169,51 @@ func TestUser_Logout(t *testing.T) {
 }
 
 func TestUser_SendInvitation(t *testing.T) {
+	user1 := new(User)
+	user1.FirstName = "John"
+	user1.LastName = "Doe"
+	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Password = "password"
+	_, err := CreateUser(user1)
+	assert.NoError(t, err, "user creation failed")
 
+	user2 := new(User)
+	user2.FirstName = "John2"
+	user2.LastName = "Doe2"
+	user2.Email = "john" + RandomString(15) + "@doe.com"
+	user2.Password = "password"
+	user2ID, err := CreateUser(user2)
+	assert.NoError(t, err, "user creation failed")
+
+	user2.ID = user2ID.(primitive.ObjectID)
+	err = user1.SendInvitation(user2)
+	assert.NoError(t, err, "send new user invitations failed")
 }
 
 func TestUser_AddFriend(t *testing.T) {
+	user1 := new(User)
+	user1.FirstName = "John"
+	user1.LastName = "Doe"
+	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Password = "password"
+	user1ID, err := CreateUser(user1)
+	assert.NoError(t, err, "user creation failed")
 
-}
+	user2 := new(User)
+	user2.FirstName = "John2"
+	user2.LastName = "Doe2"
+	user2.Email = "john" + RandomString(15) + "@doe.com"
+	user2.Password = "password"
+	user2ID, err := CreateUser(user2)
+	assert.NoError(t, err, "user creation failed")
 
-func TestUser_GetSentInvitations(t *testing.T) {
+	user2.ID = user2ID.(primitive.ObjectID)
+	err = user1.SendInvitation(user2)
+	assert.NoError(t, err, "sending new user invitation failed")
 
+	user2.ID = user2ID.(primitive.ObjectID)
+	err = user2.AddFriend(user1ID.(primitive.ObjectID))
+	assert.NoError(t, err, "adding new friend failed")
 }
 
 func TestValidUserEmail(t *testing.T) {
@@ -222,20 +259,100 @@ func TestValidUserEmail(t *testing.T) {
 	}
 }
 
-func TestUser_GetReceivedInvitations(t *testing.T) {
+func TestUser_GetSentInvitations(t *testing.T) {
+	user1 := new(User)
+	user1.FirstName = "John"
+	user1.LastName = "Doe"
+	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Password = "password"
+	_, err := CreateUser(user1)
+	assert.NoError(t, err, "user creation failed")
 
+	invites, err := user1.GetSentInvitations()
+	assert.NoError(t, err, "fetching new user invitations failed")
+	assert.Equal(t, 0, len(invites), "empty list of invites should come")
+}
+
+func TestUser_GetReceivedInvitations(t *testing.T) {
+	user1 := new(User)
+	user1.FirstName = "John"
+	user1.LastName = "Doe"
+	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Password = "password"
+	_, err := CreateUser(user1)
+	assert.NoError(t, err, "user creation failed")
+
+	invites, err := user1.GetReceivedInvitations()
+	assert.NoError(t, err, "fetching new user invitations failed")
+	assert.Equal(t, 0, len(invites), "empty list of invites should come")
 }
 
 func TestUser_GetAcceptedInvitations(t *testing.T) {
+	user1 := new(User)
+	user1.FirstName = "John"
+	user1.LastName = "Doe"
+	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Password = "password"
+	_, err := CreateUser(user1)
+	assert.NoError(t, err, "user creation failed")
 
+	invites, err := user1.GetAcceptedInvitations()
+	assert.NoError(t, err, "fetching new user invitations failed")
+	assert.Equal(t, 0, len(invites), "empty list of invites should come")
 }
 
 func TestUser_GetCanceledSentInvitations(t *testing.T) {
+	user1 := new(User)
+	user1.FirstName = "John"
+	user1.LastName = "Doe"
+	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Password = "password"
+	_, err := CreateUser(user1)
+	assert.NoError(t, err, "user creation failed")
 
+	invites, err := user1.GetCanceledSentInvitations()
+	assert.NoError(t, err, "fetching new user invitations failed")
+	assert.Equal(t, 0, len(invites), "empty list of invites should come")
+}
+
+func TestUser_GetRejectedInvitations(t *testing.T) {
+	user1 := new(User)
+	user1.FirstName = "John"
+	user1.LastName = "Doe"
+	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Password = "password"
+	_, err := CreateUser(user1)
+	assert.NoError(t, err, "user creation failed")
+
+	invites, err := user1.GetReceivedInvitations()
+	assert.NoError(t, err, "fetching new user invitations failed")
+	assert.Equal(t, 0, len(invites), "empty list of invites should come")
 }
 
 func TestUser_CancelInvitation(t *testing.T) {
+	user1 := new(User)
+	user1.FirstName = "John"
+	user1.LastName = "Doe"
+	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Password = "password"
+	_, err := CreateUser(user1)
+	assert.NoError(t, err, "user creation failed")
 
+	user2 := new(User)
+	user2.FirstName = "John2"
+	user2.LastName = "Doe2"
+	user2.Email = "john" + RandomString(15) + "@doe.com"
+	user2.Password = "password"
+	user2ID, err := CreateUser(user2)
+	assert.NoError(t, err, "user creation failed")
+
+	user2.ID = user2ID.(primitive.ObjectID)
+	err = user1.SendInvitation(user2)
+	assert.NoError(t, err, "fetching new user invitations failed")
+
+	user2.ID = user2ID.(primitive.ObjectID)
+	err = user1.CancelInvitation(user2)
+	assert.NoError(t, err, "fetching new user invitations failed")
 }
 
 func TestUser_SeeFriends(t *testing.T) {
@@ -281,5 +398,27 @@ func TestUser_String(t *testing.T) {
 }
 
 func TestUser_ShowChat(t *testing.T) {
+	// fetching a genuine chat, so creating users and chat b/w them
+	user1 := new(User)
+	user1.FirstName = "John"
+	user1.LastName = "Doe"
+	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Password = "password"
+	user1ID, err := CreateUser(user1)
+	assert.NoError(t, err, "user creation failed")
 
+	user2 := new(User)
+	user2.FirstName = "John2"
+	user2.LastName = "Doe2"
+	user2.Email = "john" + RandomString(15) + "@doe.com"
+	user2.Password = "password"
+	user2ID, err := CreateUser(user2)
+	assert.NoError(t, err, "user creation failed")
+
+	err = SendMessage(user1ID.(primitive.ObjectID), user2ID.(primitive.ObjectID), "test message")
+	assert.NoError(t, err, "new document should be created for the chat")
+
+	content, timestamp := user1.ShowChat(user2ID.(primitive.ObjectID))
+	assert.NotEqual(t, "", content, "non-empty content should arrive")
+	assert.NotEqual(t, time.Time{}, timestamp, "non-empty (non-ZERO value) should be returned")
 }
