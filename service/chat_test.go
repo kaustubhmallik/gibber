@@ -52,4 +52,28 @@ func TestFetchIncomingMessages(t *testing.T) {
 	msgs, err := fetchIncomingMessages(time.Now().UTC(), self, other)
 	assert.Equal(t, mongo.ErrNoDocuments, err, "error as invalid users")
 	assert.True(t, len(msgs) == 0, "empty list of messages expected")
+
+	// fetching a genuine chat, so creating users and chat b/w them
+	user1 := new(User)
+	user1.FirstName = "John"
+	user1.LastName = "Doe"
+	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Password = "password"
+	user1ID, err := CreateUser(user1)
+	assert.NoError(t, err, "user creation failed")
+
+	user2 := new(User)
+	user2.FirstName = "John2"
+	user2.LastName = "Doe2"
+	user2.Email = "john" + RandomString(15) + "@doe.com"
+	user2.Password = "password"
+	user2ID, err := CreateUser(user2)
+	assert.NoError(t, err, "user creation failed")
+
+	err = SendMessage(user1ID.(primitive.ObjectID), user2ID.(primitive.ObjectID), "test message")
+	assert.NoError(t, err, "new document should be created for the chat")
+
+	msgs, err = fetchIncomingMessages(time.Now().UTC().Add(-time.Minute), user2ID.(primitive.ObjectID), user1ID.(primitive.ObjectID))
+	assert.NoError(t, err, "error fetching just sent message")
+	assert.Equal(t, 1, len(msgs), "a single message is expected")
 }
