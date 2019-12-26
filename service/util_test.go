@@ -88,3 +88,41 @@ func TestGetMap(t *testing.T) {
 		assert.Equal(t, tc.expected, actual, "test %s failed", tc.name)
 	}
 }
+
+func TestRandomString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input int
+	}{
+		{
+			name:  "empty random string",
+			input: 0,
+		},
+		{
+			name:  "single rune random string",
+			input: 1,
+		},
+		{
+			name:  "normal random string",
+			input: 10,
+		},
+		{
+			name:  "long random string",
+			input: 25,
+		},
+		{
+			name:  "very long random string",
+			input: 100,
+		},
+	}
+	for _, tc := range tests {
+		o1, o2, o3 := RandomString(tc.input), RandomString(tc.input), RandomString(tc.input)
+		assert.Equal(t, tc.input, len(o1), "string length is not as expected")
+		assert.Equal(t, tc.input, len(o2), "string length is not as expected")
+		if tc.input > 0 {
+			assert.NotEqual(t, o1, o2, "random string are not equal on successive calls")
+			assert.NotEqual(t, o1, o3, "random string are not equal on successive calls")
+			assert.NotEqual(t, o2, o3, "random string are not equal on successive calls")
+		}
+	}
+}

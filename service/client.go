@@ -45,9 +45,9 @@ var (
 	IncorrectPassword          = errors.New("incorrect password")
 	InvalidEmail               = errors.New("invalid email")
 	ServerError                = errors.New("server processing error")
-	EmptyInput                 = errors.New("empty input")
+	EmptyInput                 = errors.New("empty msg")
 	ShortPassword              = errors.New("password should be at 6 characters long")
-	InvalidInput               = errors.New("invalid input")
+	InvalidInput               = errors.New("invalid msg")
 	FetchReceivedInvitesFailed = errors.New("failed to fetch received invitations")
 	FetchSentInvitesFailed     = errors.New("failed to fetch sent invitations")
 	CancelInviteFailed         = errors.New("cancelling invite failed")
@@ -280,7 +280,7 @@ func (c *Client) SendAndReceiveMsg(msgToSend string, newline, emptyInputValid bo
 		Logger().Printf("empty string received from client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 		c.SendMessage(EmptyInput.Error(), true)
 		if c.Err != nil {
-			Logger().Printf("sending empty input msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+			Logger().Printf("sending empty msg msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 		}
 	}
 	return
@@ -430,12 +430,13 @@ func (c *Client) SeeActiveReceivedInvitations() {
 	}
 	c.SendMessage("\n**** Active Received Invitations ****\n", true)
 	for idx, invite := range invites {
-		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, UserProfile(invite)), true)
+		userProfile, _ := UserProfile(invite)
+		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, userProfile), true)
 	}
 	userInput := c.SendAndReceiveMsg("\nChoose one to accept or reject(\"b to go back\"): ", false,
 		false)
 	if c.Err != nil {
-		Logger().Printf("error receiving user invitation input from client %s: %s", (*c.Conn).RemoteAddr(), err)
+		Logger().Printf("error receiving user invitation msg from client %s: %s", (*c.Conn).RemoteAddr(), err)
 		return
 	}
 	if strings.ToLower(userInput) == "b" {
@@ -443,7 +444,7 @@ func (c *Client) SeeActiveReceivedInvitations() {
 	}
 	invitationIdx, err := strconv.Atoi(userInput)
 	if err != nil || invitationIdx < 0 || invitationIdx > len(invites) {
-		Logger().Printf("invitation index input %s parsing failed from client %s: %s", userInput,
+		Logger().Printf("invitation index msg %s parsing failed from client %s: %s", userInput,
 			(*c.Conn).RemoteAddr(), userInput)
 		c.Err = InvalidInput
 		c.SendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
@@ -490,7 +491,8 @@ func (c *Client) SeeActiveSentInvitations() {
 	}
 	c.SendMessage("\n**** Active Sent Invitations ****\n", true)
 	for idx, invite := range invites {
-		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, UserProfile(invite)), true)
+		userProfile, _ := UserProfile(invite)
+		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, userProfile), true)
 	}
 	userInput := c.SendAndReceiveMsg("\nChoose one to cancel(\"b to go back\"): ", false, false)
 	if c.Err != nil {
@@ -502,7 +504,7 @@ func (c *Client) SeeActiveSentInvitations() {
 	}
 	invitationIdx, err := strconv.Atoi(userInput)
 	if err != nil || invitationIdx < 0 || invitationIdx > len(invites) {
-		Logger().Printf("invitation index input %s parsing failed from client %s: %s", userInput,
+		Logger().Printf("invitation index msg %s parsing failed from client %s: %s", userInput,
 			(*c.Conn).RemoteAddr(), userInput)
 		c.Err = InvalidInput
 		c.SendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
@@ -544,7 +546,8 @@ func (c *Client) SeeInactiveReceivedInvitations() {
 	}
 	c.SendMessage("\n**** Active Sent Invitations ****\n", true)
 	for idx, invite := range invites {
-		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, UserProfile(invite)), true)
+		userProfile, _ := UserProfile(invite)
+		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, userProfile), true)
 	}
 	userInput := c.SendAndReceiveMsg("\nChoose one to cancel(\"b to go back\"): ", false, false)
 	if c.Err != nil {
@@ -557,7 +560,7 @@ func (c *Client) SeeInactiveReceivedInvitations() {
 	}
 	invitationIdx, err := strconv.Atoi(userInput)
 	if err != nil || invitationIdx < 0 || invitationIdx > len(invites) {
-		Logger().Printf("invitation index input %s parsing failed from client %s: %s", userInput,
+		Logger().Printf("invitation index msg %s parsing failed from client %s: %s", userInput,
 			(*c.Conn).RemoteAddr(), userInput)
 		c.Err = InvalidInput
 		c.SendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
@@ -730,12 +733,13 @@ func (c *Client) SeeOnlineFriends() {
 	}
 	c.SendMessage("\n****************** Online Friends List *****************\n", true)
 	for idx, friend := range friends {
-		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, UserProfile(friend)), true)
+		userProfile, _ := UserProfile(friend)
+		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, userProfile), true)
 	}
 	userInput := c.SendAndReceiveMsg("Enter a friend's index to start chat: ", false, false)
 	friendIdx, err := strconv.Atoi(userInput)
 	if err != nil {
-		Logger().Printf("error while parsing user input %s to start chat: %s", userInput, err)
+		Logger().Printf("error while parsing user msg %s to start chat: %s", userInput, err)
 		c.Err = InvalidInput
 		return
 	}
@@ -751,14 +755,15 @@ func (c *Client) SeeFriends() {
 	}
 	c.SendMessage("\n****************** Friends List *****************\n", true)
 	for idx, friend := range friends {
-		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, UserProfile(friend)), true)
+		userProfile, _ := UserProfile(friend)
+		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, userProfile), true)
 	}
 	for {
 		userInput := c.SendAndReceiveMsg("\nEnter 'b' to go back: ", false, false)
 		if userInput == "b" {
 			break
 		}
-		c.SendMessage(fmt.Sprintf("Invalid input: %s", userInput), true)
+		c.SendMessage(fmt.Sprintf("Invalid msg: %s", userInput), true)
 	}
 }
 

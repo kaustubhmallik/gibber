@@ -6,18 +6,13 @@ import (
 	"net"
 )
 
-const (
-	Host = "127.0.0.1"
-	Port = "7000"
-)
-
 const ConnectionType = "tcp"
 
-func StartServer() error {
-	address := fmt.Sprintf("%s:%s", Host, Port)
+func StartServer(host, port string) error {
+	address := fmt.Sprintf("%s:%s", host, port)
 	listener, err := net.Listen(ConnectionType, address)
 	if err != nil {
-		return WriteLogAndReturnError("error in starting listener on host %s and port %s: %s", Host, Port, err)
+		return WriteLogAndReturnError("error in starting listener on host %s and port %s: %s", host, port, err)
 	}
 	Logger().Printf("started TCP listener on %s", address)
 	_ = PrintLogo()

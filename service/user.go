@@ -583,9 +583,12 @@ func (u *User) SeeFriends() (friends []primitive.ObjectID, err error) {
 }
 
 // shows the basic details about a given user based on the object
-func UserProfile(userID primitive.ObjectID) string {
-	user, _ := GetUserByID(userID)
-	return fmt.Sprintf("%s %s : %s", user.FirstName, user.LastName, user.Email)
+func UserProfile(userID primitive.ObjectID) (string, error) {
+	user, err := GetUserByID(userID)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s %s : %s", user.FirstName, user.LastName, user.Email), nil
 }
 
 func (u *User) String() string {
