@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"testing"
+	"time"
 )
 
 var scanner *bufio.Scanner
@@ -16,11 +17,13 @@ var writer *bufio.Writer
 
 func init() {
 	go func() {
-		_ = StartServer("localhost", "44510")
+		_ = StartServer("localhost", "4510")
 	}()
 
+	time.Sleep(2 * time.Second)
+
 	//connect to server
-	conn, err := net.Dial("tcp", "localhost:44510")
+	conn, err := net.Dial("tcp", "localhost:4510")
 	if err != nil || conn == nil {
 		log.Fatal("unable to connect to tcp server")
 	}
