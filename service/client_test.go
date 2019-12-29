@@ -17,13 +17,13 @@ var writer *bufio.Writer
 
 func init() {
 	go func() {
-		_ = StartServer("localhost", "44510")
+		_ = StartServer("localhost", "44517")
 	}()
 
 	//connect to server
-	conn, err := net.Dial("tcp", "localhost:44510")
-	if err != nil || conn == nil {
-		log.Fatal("unable to connect to tcp server")
+	conn, err := net.Dial("tcp", "localhost:44517")
+	if err != nil {
+		log.Fatalf("unable to connect to tcp server at localhost:44517 : %s", err)
 	}
 
 	scanner = bufio.NewScanner(conn)
