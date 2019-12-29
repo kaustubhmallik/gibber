@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"testing"
+	"time"
 )
 
 var scanner *bufio.Scanner
@@ -19,6 +20,7 @@ func init() {
 	go func() {
 		_ = StartServer("localhost", "44517")
 	}()
+	time.Sleep(time.Second * 3) // sleep to make sure that server starts before the next step
 
 	//connect to server
 	conn, err := net.Dial("tcp", "localhost:44517")

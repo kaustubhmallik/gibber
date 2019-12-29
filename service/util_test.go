@@ -119,7 +119,7 @@ func TestRandomString(t *testing.T) {
 		o1, o2, o3 := RandomString(tc.input), RandomString(tc.input), RandomString(tc.input)
 		assert.Equal(t, tc.input, len(o1), "string length is not as expected")
 		assert.Equal(t, tc.input, len(o2), "string length is not as expected")
-		if tc.input > 0 {
+		if tc.input > 1 {
 			assert.NotEqual(t, o1, o2, "random string are not equal on successive calls")
 			assert.NotEqual(t, o1, o3, "random string are not equal on successive calls")
 			assert.NotEqual(t, o2, o3, "random string are not equal on successive calls")
