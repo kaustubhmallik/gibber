@@ -1,6 +1,8 @@
 # Gibber
 [![Build Status](https://travis-ci.com/kaustubhmallik/gibber.png?branch=master)](https://travis-ci.com/kaustubhmallik/gibber)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kaustubhmallik/gibber)](https://goreportcard.com/report/github.com/kaustubhmallik/gibber)
 [![codecov.io](https://img.shields.io/codecov/c/github/kaustubhmallik/gibber/master)](https://codecov.io/gh/kaustubhmallik/gibber/branch/master)
+
 
 **Gibber** is a a simple chat application based on client-server model. The purpose of creating gibber is to make 
 chat (or "gibbering"") effortless.
