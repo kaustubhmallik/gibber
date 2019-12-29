@@ -2,6 +2,7 @@ package service
 
 import (
 	"bufio"
+	"context"
 	"github.com/stretchr/testify/assert"
 	"log"
 	"net"
@@ -17,11 +18,11 @@ const (
 )
 
 func init() {
-	go func() {
-		log.Fatal(StartServer(Host, Port)) // start tcp server
-	}()
-	time.Sleep(time.Second)
-
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Second)
+	go func(c context.CancelFunc) {
+		_ = StartServer(Host, Port, cancelFunc) // start tcp server
+	}(cancelFunc)
+	<-ctx.Done()                              // wait till the server is initialized completely
 	co, err := net.Dial("tcp", Host+":"+Port) // connect as client
 	if err != nil {
 		log.Fatalf("error in connecting to server: %s", err)

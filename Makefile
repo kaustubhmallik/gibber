@@ -26,6 +26,7 @@ test:
 test_cover:
 	$(GO_TEST_COVER)
 
-.PHONY: .githooks
 githooks:
 	$(GIT_HOOKS)
+
+.PHONY: .githooks all build test clean

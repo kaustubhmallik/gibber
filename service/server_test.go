@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
@@ -8,10 +9,11 @@ import (
 )
 
 func TestStartServer(t *testing.T) {
-	go func() {
-		_ = StartServer("localhost", "34510")
-	}()
-	time.Sleep(time.Second * 3)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Second)
+	go func(f context.CancelFunc) {
+		_ = StartServer("localhost", "34510", f)
+	}(cancelFunc)
+	<-ctx.Done()
 
 	//connect to server
 	conn, err := net.Dial("tcp", "localhost:34510")
