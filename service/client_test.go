@@ -4,6 +4,7 @@ package service
 
 import (
 	"bufio"
+	"context"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
@@ -17,10 +18,11 @@ var scanner *bufio.Scanner
 var writer *bufio.Writer
 
 func init() {
+	ctx, f := context.WithTimeout(context.TODO(), 3*time.Second)
 	go func() {
-		_ = StartServer("localhost", "44517")
+		_ = StartServer("localhost", "44517", f)
 	}()
-	time.Sleep(time.Second * 3) // sleep to make sure that server starts before the next step
+	<-ctx.Done() // wait till the server initialization is completed
 
 	//connect to server
 	conn, err := net.Dial("tcp", "localhost:44517")

@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 )
 
-const LogoFilePath = "service/logo.txt"
+const LogoFilePath = "assets/logo.txt"
 
 func PrintLogo() (err error) {
 	filePath := ProjectRootPath() + LogoFilePath

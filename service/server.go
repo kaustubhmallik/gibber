@@ -2,13 +2,15 @@ package service
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 )
 
 const ConnectionType = "tcp"
 
-func StartServer(host, port string) error {
+func StartServer(host, port string, complete context.CancelFunc) error {
+	defer complete() // mark the context as completed/cancelled
 	address := fmt.Sprintf("%s:%s", host, port)
 	listener, err := net.Listen(ConnectionType, address)
 	if err != nil {
@@ -16,6 +18,7 @@ func StartServer(host, port string) error {
 	}
 	Logger().Printf("started TCP listener on %s", address)
 	_ = PrintLogo()
+	complete() // as the next step is infinite loop
 	for {
 		conn, err := listener.Accept()
 		if err != nil {

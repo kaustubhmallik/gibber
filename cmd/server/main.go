@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"gibber/service"
 	"log"
+	"time"
 )
 
 const (
@@ -11,5 +13,6 @@ const (
 )
 
 func main() {
-	log.Fatal(service.StartServer(Host, Port))
+	_, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+	log.Fatal(service.StartServer(Host, Port, cancelFunc))
 }
