@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/crypto/bcrypt"
 	"io"
 	"strconv"
 	"strings"
@@ -604,7 +605,7 @@ func (c *Client) ChangePassword() {
 		if c.Err != nil {
 			continue
 		}
-		if err := MatchHashAndPlainText(c.Password, currPassword); err != nil {
+		if err := bcrypt.CompareHashAndPassword([]byte(c.Password), []byte(currPassword)); err != nil {
 			Logger().Printf("user %s entered incorrect password: %s", c.Email, err)
 			c.Err = IncorrectPassword
 			continue
@@ -634,13 +635,13 @@ func (c *Client) ChangePassword() {
 			c.Err = PasswordNotMatched
 			continue
 		}
-		passwordHash, err := GenerateHash(newPassword)
+		passwordHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 		if err != nil {
 			Logger().Println(err)
 			c.Err = InternalError
 			return
 		}
-		err = c.User.UpdatePassword(passwordHash)
+		err = c.User.UpdatePassword(string(passwordHash))
 		if err != nil {
 			c.Err = UpdateUserPasswordFailed
 			c.SendMessage("Password update failed. Please try again.\n", true)

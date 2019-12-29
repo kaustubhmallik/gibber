@@ -9,12 +9,12 @@ import (
 
 func TestStartServer(t *testing.T) {
 	go func() {
-		_ = StartServer("localhost", "39597")
+		_ = StartServer("localhost", "34510")
 	}()
-	time.Sleep(2 * time.Second)
+	time.Sleep(time.Second * 3)
 
 	//connect to server
-	conn, err := net.Dial("tcp", "localhost:39597")
+	conn, err := net.Dial("tcp", "localhost:34510")
 	assert.NoError(t, err, "connection unsuccessful")
 	assert.NotEmpty(t, conn, "connection unsuccessful")
 

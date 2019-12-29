@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/crypto/bcrypt"
 	"log"
 	"net"
 	"testing"
@@ -17,15 +18,14 @@ var writer *bufio.Writer
 
 func init() {
 	go func() {
-		_ = StartServer("localhost", "4510")
+		_ = StartServer("localhost", "44517")
 	}()
-
-	time.Sleep(2 * time.Second)
+	time.Sleep(time.Second * 3) // sleep to make sure that server starts before the next step
 
 	//connect to server
-	conn, err := net.Dial("tcp", "localhost:4510")
-	if err != nil || conn == nil {
-		log.Fatal("unable to connect to tcp server")
+	conn, err := net.Dial("tcp", "localhost:44517")
+	if err != nil {
+		log.Fatalf("unable to connect to tcp server at localhost:44517 : %s", err)
 	}
 
 	scanner = bufio.NewScanner(conn)
@@ -34,13 +34,13 @@ func init() {
 
 func TestClient(t *testing.T) {
 	password := "password"
-	hashPassword, _ := GenerateHash(password)
+	hashPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	user := &User{
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
 		Email:     "john" + RandomString(20) + "@doe.com",
-		Password:  hashPassword,
+		Password:  string(hashPassword),
 	}
 
 	userID, err := CreateUser(user)

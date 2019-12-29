@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/crypto/bcrypt"
 	"regexp"
 	"time"
 )
@@ -56,10 +57,11 @@ func CreateUser(user *User) (userId interface{}, err error) {
 		err = errors.New(reason)
 		return
 	}
-	user.Password, err = GenerateHash(user.Password)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return
 	}
+	user.Password = string(hashedPassword)
 	user.LoggedIn = true // as user is just created, he becomes online, until he quits the session
 	userMap, err := GetMap(user)
 	if err != nil {
@@ -169,7 +171,7 @@ func (u *User) LoginUser(password string) (lastLogin string, err error) {
 		Logger().Printf("authenticate u failed: %s", err)
 		return
 	}
-	err = MatchHashAndPlainText(fetchDBUser.Password, password)
+	err = bcrypt.CompareHashAndPassword([]byte(fetchDBUser.Password), []byte(password))
 	if err != nil {
 		Logger().Print(err)
 		return
@@ -605,7 +607,13 @@ func (u *User) ShowChat(friendID primitive.ObjectID) (content string, timestamp 
 		return
 	}
 	for _, msg := range chat.Messages {
-		content += fmt.Sprintf(PrintMessage(msg, u, friend) + "\n")
+		var sender string
+		if msg.Sender == u.ID {
+			sender = "You"
+		} else {
+			sender = friend.FirstName
+		}
+		content += fmt.Sprintf(PrintMessage(msg, sender) + "\n")
 		timestamp = msg.Timestamp
 	}
 	return
