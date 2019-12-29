@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -55,4 +56,16 @@ func CreateUserInvitesData(userId interface{}, ctx context.Context) (userInvites
 
 func (u *UserInvites) String() string {
 	return u.ID.String()
+}
+
+func GetMap(data interface{}) (dataMap map[string]interface{}, err error) {
+	if data == nil {
+		return
+	}
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal(bytes, &dataMap)
+	return
 }

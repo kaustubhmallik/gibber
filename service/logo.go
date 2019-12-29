@@ -2,9 +2,15 @@ package service
 
 import (
 	"io/ioutil"
+	"path/filepath"
+	"runtime"
+	"strings"
 )
 
-const LogoFilePath = "assets/logo.txt"
+const (
+	LogoFilePath = "assets/logo.txt"
+	ProjectName  = "gibber/"
+)
 
 func PrintLogo() (err error) {
 	filePath := ProjectRootPath() + LogoFilePath
@@ -15,4 +21,10 @@ func PrintLogo() (err error) {
 	}
 	Logger().Println(string(logoData[:]))
 	return
+}
+
+func ProjectRootPath() (path string) {
+	_, fileStr, _, _ := runtime.Caller(0)
+	rootPath := strings.Split(filepath.Dir(fileStr), ProjectName)
+	return rootPath[0] + ProjectName
 }

@@ -41,7 +41,7 @@ func TestClient(t *testing.T) {
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john" + RandomString(20) + "@doe.com",
+		Email:     "john" + randomString(20) + "@doe.com",
 		Password:  string(hashPassword),
 	}
 

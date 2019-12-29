@@ -57,7 +57,7 @@ func TestFetchIncomingMessages(t *testing.T) {
 	user1 := new(User)
 	user1.FirstName = "John"
 	user1.LastName = "Doe"
-	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Email = "john" + randomString(15) + "@doe.com"
 	user1.Password = "password"
 	user1ID, err := CreateUser(user1)
 	assert.NoError(t, err, "user creation failed")
@@ -65,7 +65,7 @@ func TestFetchIncomingMessages(t *testing.T) {
 	user2 := new(User)
 	user2.FirstName = "John2"
 	user2.LastName = "Doe2"
-	user2.Email = "john" + RandomString(15) + "@doe.com"
+	user2.Email = "john" + randomString(15) + "@doe.com"
 	user2.Password = "password"
 	user2ID, err := CreateUser(user2)
 	assert.NoError(t, err, "user creation failed")

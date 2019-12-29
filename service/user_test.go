@@ -4,6 +4,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
+	"math/rand"
 	"testing"
 	"time"
 )
@@ -13,7 +14,7 @@ func TestCreateUser(t *testing.T) {
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john" + RandomString(20) + "@doe.com",
+		Email:     "john" + randomString(20) + "@doe.com",
 		Password:  "password",
 	}
 	userID, err := CreateUser(user)
@@ -26,7 +27,7 @@ func TestGetUserByEmail(t *testing.T) {
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john" + RandomString(20) + "@doe.com",
+		Email:     "john" + randomString(20) + "@doe.com",
 		Password:  "password",
 	}
 	userID, err := CreateUser(user)
@@ -47,7 +48,7 @@ func TestGetUserByID(t *testing.T) {
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john" + RandomString(20) + "@doe.com",
+		Email:     "john" + randomString(20) + "@doe.com",
 		Password:  "password",
 	}
 	userID, err := CreateUser(user)
@@ -68,7 +69,7 @@ func TestUser_LoginUser(t *testing.T) {
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john" + RandomString(20) + "@doe.com",
+		Email:     "john" + randomString(20) + "@doe.com",
 		Password:  "password",
 	}
 	userID, err := CreateUser(user)
@@ -85,7 +86,7 @@ func TestUser_ExistingUser(t *testing.T) {
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john" + RandomString(20) + "@doe.com",
+		Email:     "john" + randomString(20) + "@doe.com",
 		Password:  "password",
 	}
 	userID, err := CreateUser(user)
@@ -102,7 +103,7 @@ func TestUser_UpdatePassword(t *testing.T) {
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john" + RandomString(20) + "@doe.com",
+		Email:     "john" + randomString(20) + "@doe.com",
 		Password:  "password",
 	}
 	userID, err := CreateUser(user)
@@ -121,7 +122,7 @@ func TestUser_UpdateName(t *testing.T) {
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john" + RandomString(20) + "@doe.com",
+		Email:     "john" + randomString(20) + "@doe.com",
 		Password:  "password",
 	}
 	userID, err := CreateUser(user)
@@ -137,7 +138,7 @@ func TestUser_SeeOnlineFriends(t *testing.T) {
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john" + RandomString(20) + "@doe.com",
+		Email:     "john" + randomString(20) + "@doe.com",
 		Password:  "password",
 	}
 	userID, err := CreateUser(user)
@@ -154,7 +155,7 @@ func TestUser_Logout(t *testing.T) {
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john" + RandomString(20) + "@doe.com",
+		Email:     "john" + randomString(20) + "@doe.com",
 		Password:  "password",
 	}
 	userID, err := CreateUser(user)
@@ -173,7 +174,7 @@ func TestUser_SendInvitation(t *testing.T) {
 	user1 := new(User)
 	user1.FirstName = "John"
 	user1.LastName = "Doe"
-	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Email = "john" + randomString(15) + "@doe.com"
 	user1.Password = "password"
 	_, err := CreateUser(user1)
 	assert.NoError(t, err, "user creation failed")
@@ -181,7 +182,7 @@ func TestUser_SendInvitation(t *testing.T) {
 	user2 := new(User)
 	user2.FirstName = "John2"
 	user2.LastName = "Doe2"
-	user2.Email = "john" + RandomString(15) + "@doe.com"
+	user2.Email = "john" + randomString(15) + "@doe.com"
 	user2.Password = "password"
 	user2ID, err := CreateUser(user2)
 	assert.NoError(t, err, "user creation failed")
@@ -195,7 +196,7 @@ func TestUser_AddFriend(t *testing.T) {
 	user1 := new(User)
 	user1.FirstName = "John"
 	user1.LastName = "Doe"
-	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Email = "john" + randomString(15) + "@doe.com"
 	user1.Password = "password"
 	user1ID, err := CreateUser(user1)
 	assert.NoError(t, err, "user creation failed")
@@ -203,7 +204,7 @@ func TestUser_AddFriend(t *testing.T) {
 	user2 := new(User)
 	user2.FirstName = "John2"
 	user2.LastName = "Doe2"
-	user2.Email = "john" + RandomString(15) + "@doe.com"
+	user2.Email = "john" + randomString(15) + "@doe.com"
 	user2.Password = "password"
 	user2ID, err := CreateUser(user2)
 	assert.NoError(t, err, "user creation failed")
@@ -264,7 +265,7 @@ func TestUser_GetSentInvitations(t *testing.T) {
 	user1 := new(User)
 	user1.FirstName = "John"
 	user1.LastName = "Doe"
-	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Email = "john" + randomString(15) + "@doe.com"
 	user1.Password = "password"
 	_, err := CreateUser(user1)
 	assert.NoError(t, err, "user creation failed")
@@ -278,7 +279,7 @@ func TestUser_GetReceivedInvitations(t *testing.T) {
 	user1 := new(User)
 	user1.FirstName = "John"
 	user1.LastName = "Doe"
-	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Email = "john" + randomString(15) + "@doe.com"
 	user1.Password = "password"
 	_, err := CreateUser(user1)
 	assert.NoError(t, err, "user creation failed")
@@ -292,7 +293,7 @@ func TestUser_GetAcceptedInvitations(t *testing.T) {
 	user1 := new(User)
 	user1.FirstName = "John"
 	user1.LastName = "Doe"
-	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Email = "john" + randomString(15) + "@doe.com"
 	user1.Password = "password"
 	_, err := CreateUser(user1)
 	assert.NoError(t, err, "user creation failed")
@@ -306,7 +307,7 @@ func TestUser_GetCanceledSentInvitations(t *testing.T) {
 	user1 := new(User)
 	user1.FirstName = "John"
 	user1.LastName = "Doe"
-	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Email = "john" + randomString(15) + "@doe.com"
 	user1.Password = "password"
 	_, err := CreateUser(user1)
 	assert.NoError(t, err, "user creation failed")
@@ -320,7 +321,7 @@ func TestUser_GetRejectedInvitations(t *testing.T) {
 	user1 := new(User)
 	user1.FirstName = "John"
 	user1.LastName = "Doe"
-	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Email = "john" + randomString(15) + "@doe.com"
 	user1.Password = "password"
 	_, err := CreateUser(user1)
 	assert.NoError(t, err, "user creation failed")
@@ -334,7 +335,7 @@ func TestUser_CancelInvitation(t *testing.T) {
 	user1 := new(User)
 	user1.FirstName = "John"
 	user1.LastName = "Doe"
-	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Email = "john" + randomString(15) + "@doe.com"
 	user1.Password = "password"
 	_, err := CreateUser(user1)
 	assert.NoError(t, err, "user creation failed")
@@ -342,7 +343,7 @@ func TestUser_CancelInvitation(t *testing.T) {
 	user2 := new(User)
 	user2.FirstName = "John2"
 	user2.LastName = "Doe2"
-	user2.Email = "john" + RandomString(15) + "@doe.com"
+	user2.Email = "john" + randomString(15) + "@doe.com"
 	user2.Password = "password"
 	user2ID, err := CreateUser(user2)
 	assert.NoError(t, err, "user creation failed")
@@ -361,7 +362,7 @@ func TestUser_SeeFriends(t *testing.T) {
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john" + RandomString(20) + "@doe.com",
+		Email:     "john" + randomString(20) + "@doe.com",
 		Password:  "password",
 	}
 	userID, err := CreateUser(user)
@@ -378,7 +379,7 @@ func TestUserProfile(t *testing.T) {
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john" + RandomString(20) + "@doe.com",
+		Email:     "john" + randomString(20) + "@doe.com",
 		Password:  "password",
 	}
 	userID, err := CreateUser(user)
@@ -403,7 +404,7 @@ func TestUser_ShowChat(t *testing.T) {
 	user1 := new(User)
 	user1.FirstName = "John"
 	user1.LastName = "Doe"
-	user1.Email = "john" + RandomString(15) + "@doe.com"
+	user1.Email = "john" + randomString(15) + "@doe.com"
 	user1.Password = "password"
 	user1ID, err := CreateUser(user1)
 	assert.NoError(t, err, "user creation failed")
@@ -411,7 +412,7 @@ func TestUser_ShowChat(t *testing.T) {
 	user2 := new(User)
 	user2.FirstName = "John2"
 	user2.LastName = "Doe2"
-	user2.Email = "john" + RandomString(15) + "@doe.com"
+	user2.Email = "john" + randomString(15) + "@doe.com"
 	user2.Password = "password"
 	user2ID, err := CreateUser(user2)
 	assert.NoError(t, err, "user creation failed")
@@ -422,4 +423,30 @@ func TestUser_ShowChat(t *testing.T) {
 	content, timestamp := user1.ShowChat(user2ID.(primitive.ObjectID))
 	assert.NotEqual(t, "", content, "non-empty content should arrive")
 	assert.NotEqual(t, time.Time{}, timestamp, "non-empty (non-ZERO value) should be returned")
+}
+
+const (
+	letterBytes   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	letterIdxBits = 6                    // 6 bits to represent a letter index
+	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+)
+
+var src = rand.NewSource(time.Now().UnixNano())
+
+func randomString(length int) string {
+	b := make([]byte, length)
+	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
+	for i, cache, remain := length-1, src.Int63(), letterIdxMax; i >= 0; {
+		if remain == 0 {
+			cache, remain = src.Int63(), letterIdxMax
+		}
+		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
+			b[i] = letterBytes[idx]
+			i--
+		}
+		cache >>= letterIdxBits
+		remain--
+	}
+	return string(b)
 }
