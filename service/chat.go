@@ -77,13 +77,8 @@ func SendMessage(sender, receiver primitive.ObjectID, text string) (err error) {
 	return
 }
 
-func PrintMessage(msg Message, self, other *User) string {
-	var sender string
-	if msg.Sender == self.ID {
-		sender = "You"
-	} else {
-		sender = other.FirstName
-	}
+//func PrintMessage(msg Message, self, other *User) string {
+func PrintMessage(msg Message, sender string) string {
 	return fmt.Sprintf("%s (%s): %s", sender, msg.Timestamp, msg.Text)
 }
 

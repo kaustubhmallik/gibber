@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/crypto/bcrypt"
 	"log"
 	"net"
 	"testing"
@@ -31,13 +32,13 @@ func init() {
 
 func TestClient(t *testing.T) {
 	password := "password"
-	hashPassword, _ := GenerateHash(password)
+	hashPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	user := &User{
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
 		Email:     "john" + RandomString(20) + "@doe.com",
-		Password:  hashPassword,
+		Password:  string(hashPassword),
 	}
 
 	userID, err := CreateUser(user)

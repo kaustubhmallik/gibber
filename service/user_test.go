@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/crypto/bcrypt"
 	"testing"
 	"time"
 )
@@ -108,10 +109,10 @@ func TestUser_UpdatePassword(t *testing.T) {
 	assert.NoError(t, err, "user creation failed")
 	assert.NotEqual(t, primitive.ObjectID{}.Hex(), userID.(primitive.ObjectID).Hex(), "default object ID")
 
-	hash, err := GenerateHash("password_new")
+	hash, err := bcrypt.GenerateFromPassword([]byte("password_new"), bcrypt.DefaultCost)
 	assert.NoError(t, err, "password hashing failed")
 
-	err = user.UpdatePassword(hash)
+	err = user.UpdatePassword(string(hash))
 	assert.NoError(t, err, "update password failed")
 }
 

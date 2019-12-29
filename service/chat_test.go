@@ -32,7 +32,7 @@ func TestPrintMessage(t *testing.T) {
 	msg.Sender = selfID
 	msg.Timestamp = time.Now().UTC()
 	msg.Text = "self message"
-	msgText := PrintMessage(*msg, self, other)
+	msgText := PrintMessage(*msg, "You")
 	assert.True(t, strings.Contains(msgText, "You"), "as you are the sender")
 	assert.True(t, strings.Contains(msgText, "self message"), "text body of the message")
 	assert.True(t, strings.Contains(msgText, msg.Timestamp.String()), "timestamp of the message")
@@ -41,7 +41,7 @@ func TestPrintMessage(t *testing.T) {
 	msg2.Sender = otherID
 	msg2.Timestamp = time.Now().UTC()
 	msg2.Text = "self message"
-	msgText = PrintMessage(*msg2, self, other)
+	msgText = PrintMessage(*msg2, other.FirstName)
 	assert.True(t, strings.Contains(msgText, other.FirstName), "as other person is the sender")
 	assert.True(t, strings.Contains(msgText, "self message"), "text body of the message")
 	assert.True(t, strings.Contains(msgText, msg2.Timestamp.String()), "timestamp of the message")
