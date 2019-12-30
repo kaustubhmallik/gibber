@@ -5,7 +5,7 @@ MK_BUILD_PATH=test -d build || mkdir -p build
 GO_CMD=go
 GO_BUILD=$(GO_CMD) build -o $(BIN_PATH) $(BUILD_PATH)
 GO_TEST=$(GO_CMD) test ./... -count=1
-GO_TEST_COVER=$(GO_TEST) --cover cover.out
+GO_TEST_COVER=$(GO_TEST) -coverprofile=coverage.txt
 GIT_HOOKS=git config --local core.hooksPath .githooks/
 
 include gibber.env

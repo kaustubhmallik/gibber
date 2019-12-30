@@ -3,9 +3,5 @@ go:
   - 1.13.x
 env:
   - CODECOV_TOKEN="d429ef0a-d42c-42e4-b059-3da24e1e11f8"
-script:
-  - source gibber.env
-  - make build
-  - go test -count=1 -coverprofile=coverage.txt ./...
 after_success:
   - bash <(curl -s https://codecov.io/bash)
