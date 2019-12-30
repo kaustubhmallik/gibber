@@ -4,7 +4,7 @@ go:
 env:
   - CODECOV_TOKEN="d429ef0a-d42c-42e4-b059-3da24e1e11f8"
 script:
-  - source gibber_test.conf
+  - source gibber.env
   - make build
   - go test -count=1 -coverprofile=coverage.txt ./...
 after_success:

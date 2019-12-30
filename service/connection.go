@@ -2,6 +2,7 @@ package service
 
 import (
 	"bufio"
+	"gibber/log"
 	"net"
 	"strings"
 )
@@ -21,12 +22,12 @@ func (c *Connection) SendMessage(msg string, newline bool) {
 	}
 	_, c.Err = c.Writer.WriteString(msg)
 	if c.Err != nil {
-		Logger().Printf("error while writing to %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+		log.Logger().Printf("error while writing to %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 		return
 	}
 	c.Err = c.Writer.Flush()
 	if c.Err != nil {
-		Logger().Printf("error while flushing data to %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+		log.Logger().Printf("error while flushing data to %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 		return
 	}
 }
@@ -36,7 +37,7 @@ func (c *Connection) ReadMessage() (content string) {
 	content, c.Err = c.Reader.ReadString('\n')
 	content = strings.TrimRight(content, "\n")
 	if c.Err != nil {
-		Logger().Printf("error while reading from %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+		log.Logger().Printf("error while reading from %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 	}
 	return
 }

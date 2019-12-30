@@ -8,6 +8,7 @@
 build/
 
 gibber
+main
 
 # Test binary, build with `go test -c`
 *.test
@@ -27,13 +28,6 @@ coverage.txt
 *.dat
 *.pgp
 *.gpg
-*.env
 
 # generated files/data/logs
 generated
-
-# ENV configs
-gibber.env
-
-#ignore local test ENV config
-gibber_local.conf
