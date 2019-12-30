@@ -35,7 +35,9 @@ type Chat struct {
 
 func GetChatByUserIDs(userID1, userID2 primitive.ObjectID) (chat *Chat, err error) {
 	chat = &Chat{}
-	userID1, userID2 = datastore.SortObjectIDs(userID1, userID2)
+	if userID1.Hex() > userID2.Hex() { // ordering IDs
+		userID1, userID2 = userID2, userID1
+	}
 	err = datastore.MongoConn().
 		Collection(ChatCollection).
 		FindOne(context.Background(),
@@ -60,7 +62,9 @@ func SendMessage(sender, receiver primitive.ObjectID, text string) (err error) {
 		Text:      text,
 		Timestamp: time.Now().UTC(),
 	}
-	sender, receiver = datastore.SortObjectIDs(sender, receiver)
+	if sender.Hex() > receiver.Hex() { // ordering IDs
+		sender, receiver = receiver, sender
+	}
 	res, err := datastore.MongoConn().Collection(ChatCollection).UpdateOne(context.Background(),
 		bson.D{
 			{Key: ChatUser1, Value: sender},

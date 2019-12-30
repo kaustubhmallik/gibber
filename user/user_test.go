@@ -326,7 +326,7 @@ func TestUser_GetRejectedInvitations(t *testing.T) {
 	_, err := CreateUser(user1)
 	assert.NoError(t, err, "user creation failed")
 
-	invites, err := user1.GetReceivedInvitations()
+	invites, err := user1.GetRejectedInvitations()
 	assert.NoError(t, err, "fetching new user invitations failed")
 	assert.Equal(t, 0, len(invites), "empty list of invites should come")
 }

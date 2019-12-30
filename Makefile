@@ -21,13 +21,16 @@ build:
 	$(MK_BUILD_PATH)
 	$(GO_BUILD)
 
-test:	
+test: clean
 	$(GO_TEST)
 
-test_cover:
+test_cover: clean
 	$(GO_TEST_COVER)
 
 githooks:
 	$(GIT_HOOKS)
+
+clean:
+	rm -rf generated
 
 .PHONY: .githooks all build test clean .env
