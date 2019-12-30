@@ -3,6 +3,8 @@ package service
 import (
 	"errors"
 	"fmt"
+	"gibber/log"
+	"gibber/user"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
@@ -14,7 +16,7 @@ import (
 
 // a client using the gibber app
 type Client struct {
-	*User
+	*user.User
 	*Connection
 }
 
@@ -106,7 +108,7 @@ const (
 func (c *Client) ShowWelcomeMessage() {
 	c.SendMessage(WelcomeMsg, true)
 	if c.Err != nil {
-		Logger().Printf("writing welcome message to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+		log.Logger().Printf("writing welcome message to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 	}
 }
 
@@ -137,11 +139,11 @@ func (c *Client) PromptForEmail() {
 			continue
 		}
 		c.Email = strings.ToLower(c.Email) // make email address case insensitive
-		if !ValidUserEmail(c.Email) {      // check for valid email - regex based
-			Logger().Printf("invalid email %s", c.Email)
+		if !user.ValidUserEmail(c.Email) { // check for valid email - regex based
+			log.Logger().Printf("invalid email %s", c.Email)
 			c.SendMessage(InvalidEmail.Error(), true)
 			if c.Err != nil {
-				Logger().Printf("sending invalid email msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+				log.Logger().Printf("sending invalid email msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 				return
 			}
 			c.Err = InvalidEmail
@@ -154,13 +156,13 @@ func (c *Client) PromptForEmail() {
 }
 
 func (c *Client) ExistingUser() (exists bool) {
-	_, c.Err = GetUserByEmail(c.Email) // if user not exists, it will throw an error
+	_, c.Err = user.GetUserByEmail(c.Email) // if user not exists, it will throw an error
 	if c.Err == mongo.ErrNoDocuments {
 		c.Err = nil // resetting the error
 		return
 	}
 	if c.Err != nil { // some other error occurred
-		Logger().Printf("existing user check for client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+		log.Logger().Printf("existing user check for client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 		return
 	}
 	exists = true
@@ -175,18 +177,18 @@ func (c *Client) LoginUser() {
 			c.SendMessage(ReenterPasswordPrompt, false)
 		}
 		if c.Err != nil {
-			Logger().Printf("user password prompt failed: %s", c.Err)
+			log.Logger().Printf("user password prompt failed: %s", c.Err)
 			continue
 		}
 		password := c.ReadMessage()
 		if c.Err != nil {
-			Logger().Printf("reading user password failed: %s", c.Err)
+			log.Logger().Printf("reading user password failed: %s", c.Err)
 			continue
 		}
 		var lastLogin string
 		lastLogin, c.Err = c.User.LoginUser(password)
 		if c.Err != nil {
-			Logger().Printf("user %s authentication failed: %s", c.Email, c.Err)
+			log.Logger().Printf("user %s authentication failed: %s", c.Email, c.Err)
 			if c.Err == IncorrectPassword {
 				c.SendMessage(FailedLogin+": "+IncorrectPassword.Error(), true)
 			} else {
@@ -194,14 +196,14 @@ func (c *Client) LoginUser() {
 			}
 			continue
 		}
-		Logger().Printf("user %s successfully logged in", c.Email)
+		log.Logger().Printf("user %s successfully logged in", c.Email)
 		c.SendMessage(fmt.Sprintf(SuccessfulLogin, lastLogin), true)
 		if c.Err != nil {
-			Logger().Printf("successful login msg failed to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+			log.Logger().Printf("successful login msg failed to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 		}
 		c.SendMessage(DashboardHeader, true)
 		if c.Err != nil {
-			Logger().Printf("dashboard header msg failed to send to client %s: %s", (*c.Conn).RemoteAddr(),
+			log.Logger().Printf("dashboard header msg failed to send to client %s: %s", (*c.Conn).RemoteAddr(),
 				c.Err)
 		}
 		return
@@ -213,27 +215,27 @@ func (c *Client) LoginUser() {
 func (c *Client) RegisterUser() {
 	c.SendMessage(NewUserMsg, true)
 	if c.Err != nil {
-		Logger().Printf("new user message sending failed: %s", c.Err)
+		log.Logger().Printf("new user message sending failed: %s", c.Err)
 		return
 	}
 
 	firstName := c.SendAndReceiveMsg(FirstNamePrompt, false, false)
 	if c.Err != nil {
-		Logger().Printf("reading user password failed: %s", c.Err)
+		log.Logger().Printf("reading user password failed: %s", c.Err)
 		return
 	}
 	c.FirstName = firstName
 
 	lastName := c.SendAndReceiveMsg(LastNamePrompt, false, false)
 	if c.Err != nil {
-		Logger().Printf("reading user last name failed: %s", c.Err)
+		log.Logger().Printf("reading user last name failed: %s", c.Err)
 		return
 	}
 	c.LastName = lastName
 
 	password := c.SendAndReceiveMsg(SetPasswordPrompt, false, false)
 	if c.Err != nil {
-		Logger().Printf("reading user new password failed: %s", c.Err)
+		log.Logger().Printf("reading user new password failed: %s", c.Err)
 		return
 	}
 	c.Err = ValidatePassword(password)
@@ -244,26 +246,26 @@ func (c *Client) RegisterUser() {
 
 	confPassword := c.SendAndReceiveMsg(ConfirmSetPasswordPrompt, false, false)
 	if c.Err != nil {
-		Logger().Printf("reading user confirm password failed: %s", c.Err)
+		log.Logger().Printf("reading user confirm password failed: %s", c.Err)
 		return
 	} else if password != confPassword {
-		Logger().Print(PasswordNotMatched.Error())
+		log.Logger().Print(PasswordNotMatched.Error())
 		c.Err = PasswordNotMatched
 		return
 	}
 	c.Password = password
 
-	_, c.Err = CreateUser(c.User)
+	_, c.Err = user.CreateUser(c.User)
 	if c.Err != nil {
-		Logger().Printf("user %s registration failed: %s", c.Email, c.Err)
+		log.Logger().Printf("user %s registration failed: %s", c.Email, c.Err)
 		c.SendMessage(FailedRegistration, true)
 		return
 	}
 
-	Logger().Printf("user %s successfully regsistered", c.User)
+	log.Logger().Printf("user %s successfully regsistered", c.User)
 	c.SendMessage(SuccessfulRegistration, true)
 	if c.Err != nil {
-		Logger().Printf("successful registration msg failed to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+		log.Logger().Printf("successful registration msg failed to client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 	}
 }
 
@@ -274,14 +276,14 @@ func (c *Client) SendAndReceiveMsg(msgToSend string, newline, emptyInputValid bo
 	}
 	msgRecvd = c.ReadMessage()
 	if c.Err != nil {
-		Logger().Printf("reading failed from client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+		log.Logger().Printf("reading failed from client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 		return
 	}
 	if !emptyInputValid && msgRecvd == "" {
-		Logger().Printf("empty string received from client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
+		log.Logger().Printf("empty string received from client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
 		c.SendMessage(EmptyInput.Error(), true)
 		if c.Err != nil {
-			Logger().Printf("sending empty msg msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+			log.Logger().Printf("sending empty msg msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 		}
 	}
 	return
@@ -294,7 +296,7 @@ func (c *Client) UserDashboard() {
 		userInput = c.ShowLandingPage()
 		choice, err := strconv.Atoi(userInput)
 		if c.Err == io.EOF { // connection is closed
-			Logger().Printf("connection closed from %s", (*c.Conn).RemoteAddr())
+			log.Logger().Printf("connection closed from %s", (*c.Conn).RemoteAddr())
 			break
 		} else if err != nil {
 			c.SendMessage(InvalidInput.Error(), true)
@@ -348,9 +350,9 @@ func (c *Client) StarChat(friendID primitive.ObjectID) {
 			done <- true // kill the incoming message listener
 			break
 		}
-		err := SendMessage(c.User.ID, friendID, input)
+		err := user.SendMessage(c.User.ID, friendID, input)
 		if err != nil {
-			Logger().Print(err)
+			log.Logger().Print(err)
 		}
 		c.SendMessage(fmt.Sprintf("\bYou: %s\n", input), true)
 	}
@@ -359,7 +361,7 @@ func (c *Client) StarChat(friendID primitive.ObjectID) {
 func (c *Client) SendInvitation() {
 	c.SendMessage(SendInvitationInfo, true)
 	if c.Err != nil {
-		Logger().Printf("error sending invitation prompt to user %s: %s", c.User.Email, c.Err)
+		log.Logger().Printf("error sending invitation prompt to user %s: %s", c.User.Email, c.Err)
 		return
 	}
 	for {
@@ -378,7 +380,7 @@ func (c *Client) SendInvitation() {
 		c.SendMessage(fmt.Sprintf("Send invite to %s", email), false)
 		confirm := c.SendAndReceiveMsg("Confirm? (Y/n): ", false, true)
 		if c.Err != nil {
-			Logger().Println(err)
+			log.Logger().Println(err)
 			return
 		}
 		if strings.ToLower(confirm) == "y" || confirm == "" {
@@ -425,19 +427,19 @@ func (c *Client) SeeInvitation() {
 func (c *Client) SeeActiveReceivedInvitations() {
 	invites, err := c.User.GetReceivedInvitations()
 	if err != nil {
-		Logger().Printf("error fetching active received invitations for user %s: %s", c.Email, err)
+		log.Logger().Printf("error fetching active received invitations for user %s: %s", c.Email, err)
 		c.Err = FetchReceivedInvitesFailed
 		return
 	}
 	c.SendMessage("\n**** Active Received Invitations ****\n", true)
 	for idx, invite := range invites {
-		userProfile, _ := UserProfile(invite)
+		userProfile, _ := user.UserProfile(invite)
 		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, userProfile), true)
 	}
 	userInput := c.SendAndReceiveMsg("\nChoose one to accept or reject(\"b to go back\"): ", false,
 		false)
 	if c.Err != nil {
-		Logger().Printf("error receiving user invitation msg from client %s: %s", (*c.Conn).RemoteAddr(), err)
+		log.Logger().Printf("error receiving user invitation msg from client %s: %s", (*c.Conn).RemoteAddr(), err)
 		return
 	}
 	if strings.ToLower(userInput) == "b" {
@@ -445,16 +447,16 @@ func (c *Client) SeeActiveReceivedInvitations() {
 	}
 	invitationIdx, err := strconv.Atoi(userInput)
 	if err != nil || invitationIdx < 0 || invitationIdx > len(invites) {
-		Logger().Printf("invitation index msg %s parsing failed from client %s: %s", userInput,
+		log.Logger().Printf("invitation index msg %s parsing failed from client %s: %s", userInput,
 			(*c.Conn).RemoteAddr(), userInput)
 		c.Err = InvalidInput
 		c.SendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
 		return
 	}
 	// The user sees 1-based indexing, so reducing one from it
-	inviteeUser, err := GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
+	inviteeUser, err := user.GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
 	if err != nil {
-		Logger().Printf("fetching invitee user %s details failed from client %s: %s", invites[invitationIdx],
+		log.Logger().Printf("fetching invitee user %s details failed from client %s: %s", invites[invitationIdx],
 			(*c.Conn).RemoteAddr(), userInput)
 		c.Err = InternalError
 		c.SendMessage("Internal error. Try again", true)
@@ -472,13 +474,13 @@ func (c *Client) SeeActiveReceivedInvitations() {
 		err = c.User.AddFriend(inviteeUser.ID)
 		if err != nil {
 			c.SendMessage(fmt.Sprintf("\nAdding %s as friend failed\n", inviteeUser.Email), true)
-			Logger().Printf("adding %s as friend to %s failed: %s", c.User.Email, inviteeUser.Email, err)
+			log.Logger().Printf("adding %s as friend to %s failed: %s", c.User.Email, inviteeUser.Email, err)
 			c.Err = InternalError
 		} else {
 			successMsg := fmt.Sprintf("\nAdded %s as friend successfully\n",
 				inviteeUser.FirstName+" "+inviteeUser.LastName)
 			c.SendMessage(successMsg, true)
-			Logger().Print(successMsg)
+			log.Logger().Print(successMsg)
 		}
 	}
 }
@@ -486,18 +488,18 @@ func (c *Client) SeeActiveReceivedInvitations() {
 func (c *Client) SeeActiveSentInvitations() {
 	invites, err := c.User.GetSentInvitations()
 	if err != nil {
-		Logger().Printf("error while fetching active sent invitations for user %s: %s", c.Email, err)
+		log.Logger().Printf("error while fetching active sent invitations for user %s: %s", c.Email, err)
 		c.Err = FetchSentInvitesFailed
 		return
 	}
 	c.SendMessage("\n**** Active Sent Invitations ****\n", true)
 	for idx, invite := range invites {
-		userProfile, _ := UserProfile(invite)
+		userProfile, _ := user.UserProfile(invite)
 		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, userProfile), true)
 	}
 	userInput := c.SendAndReceiveMsg("\nChoose one to cancel(\"b to go back\"): ", false, false)
 	if c.Err != nil {
-		Logger().Printf("error while seeing active user invitation sent from client %s: %s", (*c.Conn).RemoteAddr(), err)
+		log.Logger().Printf("error while seeing active user invitation sent from client %s: %s", (*c.Conn).RemoteAddr(), err)
 		return
 	}
 	if strings.ToLower(userInput) == "b" {
@@ -505,7 +507,7 @@ func (c *Client) SeeActiveSentInvitations() {
 	}
 	invitationIdx, err := strconv.Atoi(userInput)
 	if err != nil || invitationIdx < 0 || invitationIdx > len(invites) {
-		Logger().Printf("invitation index msg %s parsing failed from client %s: %s", userInput,
+		log.Logger().Printf("invitation index msg %s parsing failed from client %s: %s", userInput,
 			(*c.Conn).RemoteAddr(), userInput)
 		c.Err = InvalidInput
 		c.SendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
@@ -513,15 +515,15 @@ func (c *Client) SeeActiveSentInvitations() {
 	}
 
 	// The user sees 1-based indexing, so reducing one from it
-	inviteeUser, err := GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
+	inviteeUser, err := user.GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
 	if err != nil {
-		Logger().Println(err)
+		log.Logger().Println(err)
 		return
 	}
 
 	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false, true)
 	if c.Err != nil {
-		Logger().Printf("canceling invitation failed: %s", c.Err)
+		log.Logger().Printf("canceling invitation failed: %s", c.Err)
 		c.SendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
 		return
 	}
@@ -529,11 +531,11 @@ func (c *Client) SeeActiveSentInvitations() {
 		err = c.User.CancelInvitation(inviteeUser)
 		if err != nil {
 			c.SendMessage(fmt.Sprintf("\nCancelling invitation to %s failed\n", inviteeUser.Email), true)
-			Logger().Printf("cancelling invitation from %s to %s failed: %s", c.User.Email, inviteeUser.Email, err)
+			log.Logger().Printf("cancelling invitation from %s to %s failed: %s", c.User.Email, inviteeUser.Email, err)
 			c.Err = CancelInviteFailed
 		} else {
 			c.SendMessage(fmt.Sprintf("\nInvitation to %s successfully cancelled\n", inviteeUser.Email), true)
-			Logger().Printf("cancelling invitation from %s to %s succeeded", c.User.Email, inviteeUser.Email)
+			log.Logger().Printf("cancelling invitation from %s to %s succeeded", c.User.Email, inviteeUser.Email)
 		}
 	}
 }
@@ -541,18 +543,18 @@ func (c *Client) SeeActiveSentInvitations() {
 func (c *Client) SeeInactiveReceivedInvitations() {
 	invites, err := c.User.GetSentInvitations()
 	if err != nil {
-		Logger().Printf("error while fetching active sent invitations for user %s: %s", c.Email, err)
+		log.Logger().Printf("error while fetching active sent invitations for user %s: %s", c.Email, err)
 		c.Err = FetchSentInvitesFailed
 		return
 	}
 	c.SendMessage("\n**** Active Sent Invitations ****\n", true)
 	for idx, invite := range invites {
-		userProfile, _ := UserProfile(invite)
+		userProfile, _ := user.UserProfile(invite)
 		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, userProfile), true)
 	}
 	userInput := c.SendAndReceiveMsg("\nChoose one to cancel(\"b to go back\"): ", false, false)
 	if c.Err != nil {
-		Logger().Printf("error while seeing active user invitation sent from client %s: %s", (*c.Conn).RemoteAddr(), err)
+		log.Logger().Printf("error while seeing active user invitation sent from client %s: %s", (*c.Conn).RemoteAddr(), err)
 		c.Err = InternalError
 		return
 	}
@@ -561,23 +563,23 @@ func (c *Client) SeeInactiveReceivedInvitations() {
 	}
 	invitationIdx, err := strconv.Atoi(userInput)
 	if err != nil || invitationIdx < 0 || invitationIdx > len(invites) {
-		Logger().Printf("invitation index msg %s parsing failed from client %s: %s", userInput,
+		log.Logger().Printf("invitation index msg %s parsing failed from client %s: %s", userInput,
 			(*c.Conn).RemoteAddr(), userInput)
 		c.Err = InvalidInput
 		c.SendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
 		return
 	}
 	// The user sees 1-based indexing, so reducing one from it
-	inviteeUser, err := GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
+	inviteeUser, err := user.GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
 	if err != nil {
-		Logger().Printf("error fetching user %s details: %s", invites[invitationIdx-1], err)
+		log.Logger().Printf("error fetching user %s details: %s", invites[invitationIdx-1], err)
 		c.Err = FetchUserFailed
 		return
 	}
 
 	confirm := c.SendAndReceiveMsg("\nConfirm(Y/n): ", false, true)
 	if c.Err != nil {
-		Logger().Printf("error getting confirmation: %s", c.Err)
+		log.Logger().Printf("error getting confirmation: %s", c.Err)
 		c.Err = InvalidInput
 		return
 	}
@@ -585,11 +587,11 @@ func (c *Client) SeeInactiveReceivedInvitations() {
 		err = c.User.CancelInvitation(inviteeUser)
 		if err != nil {
 			c.SendMessage(fmt.Sprintf("\nCancelling invitation to %s failed\n", inviteeUser.Email), true)
-			Logger().Printf("cancelling invitation from %s to %s failed: %s", c.User.Email, inviteeUser.Email, err)
+			log.Logger().Printf("cancelling invitation from %s to %s failed: %s", c.User.Email, inviteeUser.Email, err)
 			c.Err = CancelInviteFailed
 		} else {
 			c.SendMessage(fmt.Sprintf("\nInvitation to %s successfully cancelled\n", inviteeUser.Email), true)
-			Logger().Printf("cancelling invitation from %s to %s succeeded", c.User.Email, inviteeUser.Email)
+			log.Logger().Printf("cancelling invitation from %s to %s succeeded", c.User.Email, inviteeUser.Email)
 		}
 	}
 }
@@ -606,7 +608,7 @@ func (c *Client) ChangePassword() {
 			continue
 		}
 		if err := bcrypt.CompareHashAndPassword([]byte(c.Password), []byte(currPassword)); err != nil {
-			Logger().Printf("user %s entered incorrect password: %s", c.Email, err)
+			log.Logger().Printf("user %s entered incorrect password: %s", c.Email, err)
 			c.Err = IncorrectPassword
 			continue
 		}
@@ -630,14 +632,14 @@ func (c *Client) ChangePassword() {
 			continue
 		}
 		if newPassword != confirmNewPassword {
-			Logger().Print(PasswordNotMatched)
+			log.Logger().Print(PasswordNotMatched)
 			c.SendMessage(PasswordNotMatched.Error(), true)
 			c.Err = PasswordNotMatched
 			continue
 		}
 		passwordHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 		if err != nil {
-			Logger().Println(err)
+			log.Logger().Println(err)
 			c.Err = InternalError
 			return
 		}
@@ -655,20 +657,20 @@ func (c *Client) ChangePassword() {
 func (c *Client) ChangeName() {
 	newFirstName := c.SendAndReceiveMsg("\nEnter your new first name(enter blank for skip): ", false, true)
 	if c.Err != nil {
-		Logger().Printf("error getting entered first name: %s", c.Err)
+		log.Logger().Printf("error getting entered first name: %s", c.Err)
 		return
 	}
 	if newFirstName == "" {
-		Logger().Printf("skipping first name change for user %s", c.Email)
+		log.Logger().Printf("skipping first name change for user %s", c.Email)
 	}
 
 	newLastName := c.SendAndReceiveMsg("\nEnter your new last name(enter blank for skip): ", false, true)
 	if c.Err != nil {
-		Logger().Printf("error getting entered last name: %s", c.Err)
+		log.Logger().Printf("error getting entered last name: %s", c.Err)
 		return
 	}
 	if newLastName == "" {
-		Logger().Printf("skipping first name change for user %s", c.Email)
+		log.Logger().Printf("skipping first name change for user %s", c.Email)
 	}
 
 	err := c.User.UpdateName(newFirstName, newLastName)
@@ -693,7 +695,7 @@ func (c *Client) SeePersonalProfile() {
 func (c *Client) ExitClient() {
 	c.SendMessage(ExitingMsg, true)
 	if c.Err != nil {
-		Logger().Printf("sending exit msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
+		log.Logger().Printf("sending exit msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 	}
 }
 
@@ -703,23 +705,23 @@ func (c *Client) SeeSelfProfile() {
 }
 
 // allow a client to see other person's basic detail before sending invitation
-func (c *Client) SeePublicProfile(email string) (user *User, err error) {
-	user, err = GetUserByEmail(email)
+func (c *Client) SeePublicProfile(email string) (usr *user.User, err error) {
+	usr, err = user.GetUserByEmail(email)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			c.SendMessage(fmt.Sprintf("\nNo user found with given email %s", email), true)
+			c.SendMessage(fmt.Sprintf("\nNo usr found with given email %s", email), true)
 		}
-		Logger().Printf("error while sending no user found msg: %s", c.Err)
+		log.Logger().Printf("error while sending no usr found msg: %s", c.Err)
 		return
 	}
-	c.SendMessage(fmt.Sprintf("\nuser found => First Name: %s, LastName: %s, Email: %s", user.FirstName, user.LastName,
-		user.Email), true)
+	c.SendMessage(fmt.Sprintf("\nusr found => First Name: %s, LastName: %s, Email: %s", usr.FirstName, usr.LastName,
+		usr.Email), true)
 	return
 }
 
 func ValidatePassword(password string) (err error) {
 	if len(password) < PasswordMinLength {
-		Logger().Printf("%s password: %s", ShortPassword, password)
+		log.Logger().Printf("%s password: %s", ShortPassword, password)
 		err = InsufficientLengthPassword
 	}
 	return
@@ -728,19 +730,19 @@ func ValidatePassword(password string) (err error) {
 func (c *Client) SeeOnlineFriends() {
 	friends, err := c.User.SeeFriends()
 	if err != nil {
-		Logger().Printf("error while fetching online friends for client %s: %s", (*c.Conn).RemoteAddr(), err)
+		log.Logger().Printf("error while fetching online friends for client %s: %s", (*c.Conn).RemoteAddr(), err)
 		c.Err = FetchUserFriendsFailed
 		return
 	}
 	c.SendMessage("\n****************** Online Friends List *****************\n", true)
 	for idx, friend := range friends {
-		userProfile, _ := UserProfile(friend)
+		userProfile, _ := user.UserProfile(friend)
 		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, userProfile), true)
 	}
 	userInput := c.SendAndReceiveMsg("Enter a friend's index to start chat: ", false, false)
 	friendIdx, err := strconv.Atoi(userInput)
 	if err != nil {
-		Logger().Printf("error while parsing user msg %s to start chat: %s", userInput, err)
+		log.Logger().Printf("error while parsing user msg %s to start chat: %s", userInput, err)
 		c.Err = InvalidInput
 		return
 	}
@@ -750,13 +752,13 @@ func (c *Client) SeeOnlineFriends() {
 func (c *Client) SeeFriends() {
 	friends, err := c.User.SeeFriends()
 	if err != nil {
-		Logger().Printf("error while fetching friends for client %s: %s", (*c.Conn).RemoteAddr(), err)
+		log.Logger().Printf("error while fetching friends for client %s: %s", (*c.Conn).RemoteAddr(), err)
 		c.Err = FetchUserFriendsFailed
 		return
 	}
 	c.SendMessage("\n****************** Friends List *****************\n", true)
 	for idx, friend := range friends {
-		userProfile, _ := UserProfile(friend)
+		userProfile, _ := user.UserProfile(friend)
 		c.SendMessage(fmt.Sprintf("%d - %s", idx+1, userProfile), true)
 	}
 	for {
@@ -772,16 +774,16 @@ func (c *Client) LogoutUser() {
 	if c.User.Email != "" {
 		err := c.User.Logout()
 		if err != nil {
-			Logger().Printf("error while logging out client %s: %s", c.User.Email, err)
+			log.Logger().Printf("error while logging out client %s: %s", c.User.Email, err)
 			c.Err = LogoutFailed
 		}
 	}
 }
 
 func (c *Client) PollIncomingMessages(other primitive.ObjectID, done chan bool, processed time.Time) {
-	otherUser, err := GetUserByID(other)
+	otherUser, err := user.GetUserByID(other)
 	if err != nil {
-		Logger().Printf("error fetching user %s details: %s", c.User.Email, err)
+		log.Logger().Printf("error fetching user %s details: %s", c.User.Email, err)
 		c.Err = FetchUserFailed
 		return
 	}
@@ -791,7 +793,7 @@ func (c *Client) PollIncomingMessages(other primitive.ObjectID, done chan bool, 
 		case <-done: // clean exit
 			return
 		case <-pollTick.C:
-			incomingMessages, _ := fetchIncomingMessages(processed, c.User.ID, other)
+			incomingMessages, _ := user.FetchIncomingMessages(processed, c.User.ID, other)
 			for _, msg := range incomingMessages {
 				processed = msg.Timestamp
 				c.SendMessage(fmt.Sprintf("\n\n%s (%s): %s\n", otherUser.FirstName, msg.Timestamp, msg.Text),

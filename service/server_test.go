@@ -22,3 +22,7 @@ func TestStartServer(t *testing.T) {
 
 	establishClientConnection(&conn)
 }
+
+func TestPrintLogo(t *testing.T) {
+	assert.NoError(t, nil, printLogo(), "printing logo resulted in error")
+}

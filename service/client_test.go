@@ -5,10 +5,12 @@ package service
 import (
 	"bufio"
 	"context"
+	user2 "gibber/user"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 	"log"
+	"math/rand"
 	"net"
 	"testing"
 	"time"
@@ -37,7 +39,7 @@ func init() {
 func TestClient(t *testing.T) {
 	password := "password"
 	hashPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	user := &User{
+	user := &user2.User{
 		ID:        primitive.NewObjectID(),
 		FirstName: "John",
 		LastName:  "Doe",
@@ -45,7 +47,7 @@ func TestClient(t *testing.T) {
 		Password:  string(hashPassword),
 	}
 
-	userID, err := CreateUser(user)
+	userID, err := user2.CreateUser(user)
 	assert.NoError(t, err, "user creation failed")
 	user.ID = userID.(primitive.ObjectID)
 
@@ -175,4 +177,16 @@ func TestClient_LogoutUser(t *testing.T) {
 
 func TestClient_PollIncomingMessages(t *testing.T) {
 
+}
+
+var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+func randomString(length int) string {
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[seededRand.Intn(len(charset))]
+	}
+	return string(b)
 }
