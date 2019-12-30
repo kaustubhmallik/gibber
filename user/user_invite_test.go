@@ -49,3 +49,51 @@ func TestUserInvites_String(t *testing.T) {
 	ui.ID = primitive.NewObjectID()
 	assert.True(t, ui.String() != primitive.ObjectID{}.String(), "initialized object ID should be non-empty string")
 }
+
+func TestGetMap(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    interface{}
+		errOccur bool
+	}{
+		{
+			name: "success flow",
+			input: struct {
+				foo     string
+				num     int
+				float   float64
+				success bool
+			}{
+				foo:     "bar",
+				num:     1,
+				float:   1.3,
+				success: true,
+			},
+			errOccur: false,
+		},
+		{
+			name:     "empty struct",
+			input:    nil,
+			errOccur: false,
+		},
+		{
+			name:     "primitive data type",
+			input:    1,
+			errOccur: true,
+		},
+		{
+			name:     "primitive data type",
+			input:    true,
+			errOccur: true,
+		},
+		{
+			name:     "empty function",
+			input:    func() {},
+			errOccur: true,
+		},
+	}
+	for _, tc := range tests {
+		_, err := GetMap(tc.input)
+		assert.Equal(t, tc.errOccur, err != nil, "%s failed", tc.name)
+	}
+}

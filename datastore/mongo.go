@@ -5,7 +5,6 @@ import (
 	"errors"
 	"gibber/log"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
@@ -80,14 +79,6 @@ func initMongoConnPool() {
 func MongoConn() *mongo.Database {
 	initMongoConn.Do(initMongoConnPool)
 	return mongoConn
-}
-
-// return the object ID in lexicographic ascending order (as per their string representation)
-func SortObjectIDs(id1, id2 primitive.ObjectID) (primitive.ObjectID, primitive.ObjectID) {
-	if id1.String() < id2.String() {
-		return id1, id2
-	}
-	return id2, id1
 }
 
 func initCollections() {
