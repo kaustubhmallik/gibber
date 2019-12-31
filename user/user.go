@@ -28,7 +28,8 @@ const (
 )
 
 var (
-	FetchUserFailed = errors.New("fetch user details failed")
+	FetchUserFailed   = errors.New("fetch user details failed")
+	InvalidInviteType = errors.New("invalid invite type")
 )
 
 const ValidEmailRegex = `^[\w\.=-]+@[\w\.-]+\.[\w]{2,3}$`
@@ -655,7 +656,7 @@ func (u *User) getInvitations(invType InviteType) (invites []primitive.ObjectID,
 	case Cancelled:
 		invites = invitesData.Cancelled
 	default:
-		err = fmt.Errorf("invalid invite type %s", invType)
+		err = InvalidInviteType
 	}
 	return
 }

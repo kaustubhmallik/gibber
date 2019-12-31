@@ -3,6 +3,7 @@ package user
 import (
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 	"math/rand"
 	"testing"
@@ -20,6 +21,10 @@ func TestCreateUser(t *testing.T) {
 	userID, err := CreateUser(user)
 	assert.NoError(t, err, "user creation failed")
 	assert.NotEqual(t, primitive.ObjectID{}.Hex(), userID.(primitive.ObjectID).Hex(), "default object ID")
+
+	userID, err = CreateUser(user)
+	assert.NotNil(t, err, "user creation should fails as already created")
+	assert.Nil(t, userID, "objectID returned should be nil")
 }
 
 func TestGetUserByEmail(t *testing.T) {
@@ -62,6 +67,10 @@ func TestGetUserByID(t *testing.T) {
 	assert.Equal(t, user.LastName, userFetched.LastName, "last name should be same")
 	assert.Equal(t, user.Email, userFetched.Email, "email should be same")
 	assert.NotEqual(t, primitive.ObjectID{}.Hex(), userFetched.InvitesId.Hex(), "invite ID should be created")
+
+	userFetched, err = GetUserByID(primitive.NewObjectID())
+	assert.Equal(t, mongo.ErrNoDocuments, err, "non-existent user ID")
+	assert.Equal(t, &User{}, userFetched, "empty user should be returned")
 }
 
 func TestUser_LoginUser(t *testing.T) {
@@ -130,6 +139,15 @@ func TestUser_UpdateName(t *testing.T) {
 	assert.NotEqual(t, primitive.ObjectID{}.Hex(), userID.(primitive.ObjectID).Hex(), "default object ID")
 
 	err = user.UpdateName("firstName", "lastName")
+	assert.NoError(t, err, "update name failed")
+
+	err = user.UpdateName("firstName", "")
+	assert.NoError(t, err, "update name failed")
+
+	err = user.UpdateName("", "lastName")
+	assert.NoError(t, err, "update name failed")
+
+	err = user.UpdateName("", "")
 	assert.NoError(t, err, "update name failed")
 }
 
@@ -357,6 +375,25 @@ func TestUser_CancelInvitation(t *testing.T) {
 	assert.NoError(t, err, "fetching new user invitations failed")
 }
 
+func TestUser_GetInvitation(t *testing.T) {
+	user1 := new(User)
+	user1.FirstName = "John"
+	user1.LastName = "Doe"
+	user1.Email = "john" + randomString(15) + "@doe.com"
+	user1.Password = "password"
+	_, err := CreateUser(user1)
+	assert.NoError(t, err, "user creation failed")
+
+	invites, err := user1.getInvitations("Invalid Type")
+	assert.Equal(t, InvalidInviteType, err)
+	assert.Equal(t, 0, len(invites))
+
+	user1.ID = primitive.NewObjectID()
+	invites, err = user1.getInvitations(Accepted)
+	assert.Equal(t, mongo.ErrNoDocuments, err)
+	assert.Equal(t, 0, len(invites))
+}
+
 func TestUser_SeeFriends(t *testing.T) {
 	user := &User{
 		ID:        primitive.NewObjectID(),
@@ -372,6 +409,28 @@ func TestUser_SeeFriends(t *testing.T) {
 	friends, err := user.SeeFriends()
 	assert.NotNil(t, err, "as no friends for the user currently")
 	assert.Equal(t, 0, len(friends), "as no friends for the current user")
+
+	user2 := &User{
+		ID:        primitive.NewObjectID(),
+		FirstName: "John2019",
+		LastName:  "Doe2019",
+		Email:     "john" + randomString(20) + "@doe.com",
+		Password:  "password",
+	}
+	userID2, err := CreateUser(user2)
+	assert.NoError(t, err, "user creation failed")
+	assert.NotEqual(t, primitive.ObjectID{}.Hex(), userID2.(primitive.ObjectID).Hex(), "default object ID")
+
+	err = user2.SendInvitation(user)
+	assert.NoError(t, err, "sending invite failed")
+
+	err = user.AddFriend(userID2.(primitive.ObjectID))
+	assert.NoError(t, err, "user creation failed")
+
+	friends, err = user.SeeFriends()
+	assert.NoError(t, err, "as no friends for the user currently")
+	assert.Equal(t, 1, len(friends), "as no friends for the current user")
+
 }
 
 func TestUserProfile(t *testing.T) {
@@ -389,6 +448,10 @@ func TestUserProfile(t *testing.T) {
 	userProfile, err := UserProfile(userID.(primitive.ObjectID))
 	assert.NoError(t, err, "user profile fetch failed")
 	assert.NotEqual(t, 0, len(userProfile), "user profile fetch failed")
+
+	userProfile, err = UserProfile(primitive.ObjectID{})
+	assert.Equal(t, mongo.ErrNoDocuments, err, "user profile fetch should fail as non-existent user")
+	assert.Empty(t, userProfile, "user profile content should be empty as non-existent profile")
 }
 
 func TestUser_String(t *testing.T) {
@@ -420,9 +483,16 @@ func TestUser_ShowChat(t *testing.T) {
 	err = SendMessage(user1ID.(primitive.ObjectID), user2ID.(primitive.ObjectID), "test message")
 	assert.NoError(t, err, "new document should be created for the chat")
 
+	err = SendMessage(user2ID.(primitive.ObjectID), user1ID.(primitive.ObjectID), "test message reply")
+	assert.NoError(t, err, "new document should be created for the chat")
+
 	content, timestamp := user1.ShowChat(user2ID.(primitive.ObjectID))
 	assert.NotEqual(t, "", content, "non-empty content should arrive")
 	assert.NotEqual(t, time.Time{}, timestamp, "non-empty (non-ZERO value) should be returned")
+
+	content, timestamp = user1.ShowChat(primitive.NewObjectID())
+	assert.Equal(t, time.Time{}, timestamp, "non-empty (non-ZERO value) should be returned")
+	assert.True(t, len(content) > 0, "should be non-empty as friends are added")
 }
 
 var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
