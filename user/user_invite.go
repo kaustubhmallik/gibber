@@ -30,7 +30,7 @@ type UserInvites struct {
 	Cancelled []primitive.ObjectID `bson:"cancelled" json:"cancelled"` // cancelled sent requests by user
 }
 
-func CreateUserInvitesData(userId interface{}, ctx context.Context) (userInvitesDataId interface{}, err error) {
+func CreateUserInvitesData(userId interface{}, ctx context.Context, dbConn datastore.DatabaseInserter) (userInvitesDataId interface{}, err error) {
 	userInvites := &UserInvites{
 		UserID:    userId.(primitive.ObjectID),
 		Sent:      make([]primitive.ObjectID, 0),
@@ -39,15 +39,9 @@ func CreateUserInvitesData(userId interface{}, ctx context.Context) (userInvites
 		Rejected:  make([]primitive.ObjectID, 0),
 		Cancelled: make([]primitive.ObjectID, 0),
 	}
-	userInvitesDataMap, err := GetMap(*userInvites)
-	if err != nil {
-		log.Logger().Printf("error fetching user details map: %s", err)
-		return
-	}
+	userInvitesDataMap, _ := GetMap(*userInvites)
 	userInvitesDataMap["user_id"] = userId.(primitive.ObjectID)
-	res, err := datastore.MongoConn().Collection(UserInvitesCollection).InsertOne(
-		ctx,
-		userInvitesDataMap)
+	res, err := dbConn.InsertOne(ctx, userInvitesDataMap)
 	if err != nil {
 		log.Logger().Printf("error creating user %s invites data: %s", userId, err)
 	} else {

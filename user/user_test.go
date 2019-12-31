@@ -1,6 +1,7 @@
 package user
 
 import (
+	"gibber/datastore"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -480,10 +481,12 @@ func TestUser_ShowChat(t *testing.T) {
 	user2ID, err := CreateUser(user2)
 	assert.NoError(t, err, "user creation failed")
 
-	err = SendMessage(user1ID.(primitive.ObjectID), user2ID.(primitive.ObjectID), "test message")
+	err = SendMessage(user1ID.(primitive.ObjectID), user2ID.(primitive.ObjectID), "test message",
+		datastore.MongoConn().Collection(datastore.ChatCollection))
 	assert.NoError(t, err, "new document should be created for the chat")
 
-	err = SendMessage(user2ID.(primitive.ObjectID), user1ID.(primitive.ObjectID), "test message reply")
+	err = SendMessage(user2ID.(primitive.ObjectID), user1ID.(primitive.ObjectID), "test message reply",
+		datastore.MongoConn().Collection(datastore.ChatCollection))
 	assert.NoError(t, err, "new document should be created for the chat")
 
 	content, timestamp := user1.ShowChat(user2ID.(primitive.ObjectID))

@@ -1,25 +1,57 @@
 package user
 
 import (
+	"context"
+	"errors"
+	"gibber/datastore"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"strings"
 	"testing"
 	"time"
 )
 
+var UpdateFailed = errors.New("update failure")
+
+type DatabaseUpdateFail struct {
+	// implement DatabaseUpdate interface with failure update operation
+}
+
+func (d *DatabaseUpdateFail) UpdateOne(ctx context.Context, filter interface{}, update interface{},
+	opts ...*options.UpdateOptions) (res *mongo.UpdateResult, err error) {
+	err = UpdateFailed
+	return
+}
+
+type DatabaseUpdateNoEffect struct {
+	// implement DatabaseUpdate interface with failure update operation
+}
+
+func (d *DatabaseUpdateNoEffect) UpdateOne(ctx context.Context, filter interface{}, update interface{},
+	opts ...*options.UpdateOptions) (res *mongo.UpdateResult, err error) {
+	res = new(mongo.UpdateResult) // default count values (fields) will be zero which is required
+	return
+}
+
 func TestGetChatByUserIDs(t *testing.T) {
 	userId1, userId2 := primitive.NewObjectID(), primitive.NewObjectID()
-	chat, err := GetChatByUserIDs(userId1, userId2)
+	chat, err := GetChatByUserIDs(userId1, userId2, datastore.MongoConn().Collection(ChatCollection))
 	assert.Equal(t, err, mongo.ErrNoDocuments, "invalid IDs provided so chat should be unavailable")
 	assert.Equal(t, primitive.ObjectID{}.String(), chat.ID.String(), "invalid IDs provided so chat should be unavailable")
 }
 
 func TestSendMessage(t *testing.T) {
 	sender, receiver := primitive.NewObjectID(), primitive.NewObjectID()
-	err := SendMessage(sender, receiver, "test message")
+	err := SendMessage(sender, receiver, "test message", datastore.MongoConn().Collection(ChatCollection))
 	assert.NoError(t, err, "new document should be created for the chat")
+
+	err = SendMessage(sender, receiver, "test message", new(DatabaseUpdateFail))
+	assert.Equal(t, UpdateFailed, err, "operation should fail")
+
+	err = SendMessage(sender, receiver, "test message", new(DatabaseUpdateNoEffect))
+	assert.Equal(t, datastore.NoDocUpdate, err, "operation should fail")
 }
 
 func TestPrintMessage(t *testing.T) {
@@ -70,7 +102,8 @@ func TestFetchIncomingMessages(t *testing.T) {
 	user2ID, err := CreateUser(user2)
 	assert.NoError(t, err, "user creation failed")
 
-	err = SendMessage(user1ID.(primitive.ObjectID), user2ID.(primitive.ObjectID), "test message")
+	err = SendMessage(user1ID.(primitive.ObjectID), user2ID.(primitive.ObjectID), "test message",
+		datastore.MongoConn().Collection(datastore.ChatCollection))
 	assert.NoError(t, err, "new document should be created for the chat")
 
 	msgs, err = FetchIncomingMessages(time.Now().UTC().Add(-time.Minute), user2ID.(primitive.ObjectID), user1ID.(primitive.ObjectID))

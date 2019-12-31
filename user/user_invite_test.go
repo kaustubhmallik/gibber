@@ -2,43 +2,55 @@ package user
 
 import (
 	"context"
-	"encoding/hex"
+	"errors"
+	"gibber/datastore"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"reflect"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"testing"
 )
+
+var InsertFailed = errors.New("insert failure")
+
+type databaseInsertFail struct {
+	// implementing DatabaseInserter interface for failure inserts
+}
+
+func (d *databaseInsertFail) InsertOne(ctx context.Context, document interface{}, opts ...*options.InsertOneOptions) (*mongo.InsertOneResult, error) {
+	return nil, InsertFailed
+}
 
 func TestCreateUserInvitesData(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    string
+		userId   primitive.ObjectID
 		expIdLen int
+		dbConn   datastore.DatabaseInserter
 		err      error
 	}{
 		{
 			name:     "success scenario",
-			input:    primitive.NewObjectID().Hex(),
+			userId:   primitive.NewObjectID(),
 			expIdLen: len(primitive.NewObjectID().Hex()),
+			dbConn:   datastore.MongoConn().Collection(UserInvitesCollection),
 			err:      nil,
 		},
 		{
-			name:     "failed scenario: invalid user ID",
-			input:    "invalid userId",
+			name:     "insert failure by custom interface implementation",
+			userId:   primitive.NewObjectID(),
 			expIdLen: 0,
-			err:      *new(hex.InvalidByteError),
+			dbConn:   new(databaseInsertFail),
+			err:      InsertFailed,
 		},
 	}
 	for _, tc := range tests {
-		userId, err := primitive.ObjectIDFromHex(tc.input)
-		assert.Equal(t, reflect.TypeOf(tc.err), reflect.TypeOf(err), "%s failed", tc.name)
+		userInvId, err := CreateUserInvitesData(tc.userId, context.Background(), tc.dbConn)
+		assert.Equal(t, tc.err, err, "%s failed as user invite creation failed", tc.name)
 		if err == nil {
-			userInvId, err := CreateUserInvitesData(userId, context.Background())
-			assert.Equal(t, tc.err, err, "%s failed as user invite creation failed", tc.name)
 			_, err = primitive.ObjectIDFromHex(userInvId.(primitive.ObjectID).Hex())
 			assert.Equal(t, tc.err, err, "%s failed as invalid object ID returned", tc.name)
-			assert.Equal(t, tc.expIdLen, len(userInvId.(primitive.ObjectID).Hex()),
-				"%s failed as invalid length object ID returned")
+			assert.Equal(t, tc.expIdLen, len(userInvId.(primitive.ObjectID).Hex()), "%s failed as invalid length object ID returned")
 		}
 	}
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"gibber/datastore"
 	"gibber/log"
 	"gibber/user"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -350,7 +351,7 @@ func (c *Client) StarChat(friendID primitive.ObjectID) {
 			done <- true // kill the incoming message listener
 			break
 		}
-		err := user.SendMessage(c.User.ID, friendID, input)
+		err := user.SendMessage(c.User.ID, friendID, input, datastore.MongoConn().Collection(datastore.ChatCollection))
 		if err != nil {
 			log.Logger().Print(err)
 		}
