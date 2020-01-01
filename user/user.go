@@ -70,10 +70,7 @@ func CreateUser(user *User) (userId interface{}, err error) {
 	}
 	user.Password = string(hashedPassword)
 	user.LoggedIn = true // as user is just created, he becomes online, until he quits the session
-	userMap, err := GetMap(user)
-	if err != nil {
-		return
-	}
+	userMap, _ := GetMap(user)
 	userMap["last_login"] = time.Now().UTC()
 
 	session, err := datastore.MongoConn().Client().StartSession()
@@ -104,7 +101,7 @@ func CreateUser(user *User) (userId interface{}, err error) {
 
 		// create user_invite
 		var invitesId primitive.ObjectID
-		invitesDataId, er := CreateUserInvitesData(userId, sc)
+		invitesDataId, er := CreateUserInvitesData(userId, sc, datastore.MongoConn().Collection(UserInvitesCollection))
 		invitesId = invitesDataId.(primitive.ObjectID)
 		if er != nil {
 			_ = session.AbortTransaction(sc)
@@ -608,7 +605,7 @@ func (u *User) ShowChat(friendID primitive.ObjectID) (content string, timestamp 
 	friend, _ := GetUserByID(friendID)
 	content = fmt.Sprintf("\n\n******************* Chat: %s %s *****************\n\n",
 		friend.FirstName, friend.LastName) // TODO: Use buffers instead
-	chat, err := GetChatByUserIDs(u.ID, friendID)
+	chat, err := GetChatByUserIDs(u.ID, friendID, datastore.MongoConn().Collection(ChatCollection))
 	if err != nil {
 		log.Logger().Print(err)
 		return

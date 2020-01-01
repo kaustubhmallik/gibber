@@ -7,7 +7,6 @@ import (
 	"gibber/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"time"
 )
@@ -33,30 +32,24 @@ type Chat struct {
 	Messages []Message          `json:"messages" bson:"messages"`
 }
 
-func GetChatByUserIDs(userID1, userID2 primitive.ObjectID) (chat *Chat, err error) {
+func GetChatByUserIDs(userID1, userID2 primitive.ObjectID, finder datastore.DatabaseFinder) (chat *Chat, err error) {
 	chat = &Chat{}
 	if userID1.Hex() > userID2.Hex() { // ordering IDs
 		userID1, userID2 = userID2, userID1
 	}
-	err = datastore.MongoConn().
-		Collection(ChatCollection).
-		FindOne(context.Background(),
-			bson.D{
-				{Key: ChatUser1, Value: userID1},
-				{Key: ChatUser2, Value: userID2},
-			}).
+	err = finder.FindOne(context.Background(),
+		bson.D{
+			{Key: ChatUser1, Value: userID1},
+			{Key: ChatUser2, Value: userID2},
+		}).
 		Decode(chat)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			log.Logger().Printf("no chat found with user IDs %s and %s", userID1, userID2)
-		} else {
-			log.Logger().Printf("decoding(unmarshal) chat result for users %s and %s failed: %s", userID1, userID2, err)
-		}
+		log.Logger().Printf("no chat found with user IDs %s and %s", userID1, userID2) // other errors are not expected
 	}
 	return
 }
 
-func SendMessage(sender, receiver primitive.ObjectID, text string) (err error) {
+func SendMessage(sender, receiver primitive.ObjectID, text string, updater datastore.DatabaseUpdater) (err error) {
 	msg := Message{
 		Sender:    sender,
 		Text:      text,
@@ -65,7 +58,7 @@ func SendMessage(sender, receiver primitive.ObjectID, text string) (err error) {
 	if sender.Hex() > receiver.Hex() { // ordering IDs
 		sender, receiver = receiver, sender
 	}
-	res, err := datastore.MongoConn().Collection(ChatCollection).UpdateOne(context.Background(),
+	res, err := updater.UpdateOne(context.Background(),
 		bson.D{
 			{Key: ChatUser1, Value: sender},
 			{Key: ChatUser2, Value: receiver},
@@ -90,7 +83,7 @@ func PrintMessage(msg Message, sender string) string {
 
 // sort on timestamp
 func FetchIncomingMessages(timestamp time.Time, self, other primitive.ObjectID) (msgs []Message, err error) {
-	chat, err := GetChatByUserIDs(self, other)
+	chat, err := GetChatByUserIDs(self, other, datastore.MongoConn().Collection(ChatCollection))
 	if err != nil {
 		log.Logger().Printf("error fetching chat for user %s: %s", self, err)
 		return
