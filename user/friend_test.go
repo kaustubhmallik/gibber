@@ -6,5 +6,5 @@ import (
 )
 
 func TestNewFriend(t *testing.T) {
-	assert.Equal(t, new(Friends), NewFriends(), "initializing new friends")
+	assert.Equal(t, new(friends), new(friends), "initializing new friends")
 }

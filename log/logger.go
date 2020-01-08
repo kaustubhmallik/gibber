@@ -16,8 +16,8 @@ const (
 )
 
 const (
-	FileName = "debug.log"
-	Prefix   = "Gibber::Server	"
+	fileName = "debug.log"
+	prefix   = "Gibber::Server	"
 )
 
 // for transaction requests logging
@@ -25,6 +25,8 @@ var logWriter io.Writer
 var logger *log.Logger
 var logInit sync.Once
 
+// initLogger initialize the logger to start appending on the log file
+// It creates the logfile if non-existent
 func initLogger() (err error) {
 	projectRootPath := projectRootPath()
 	logDir := projectRootPath + "generated/"
@@ -35,17 +37,18 @@ func initLogger() (err error) {
 			return
 		}
 	}
-	txnLogFile := logDir + FileName
+	txnLogFile := logDir + fileName
 	file, err := os.OpenFile(txnLogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
 		err = fmt.Errorf("opening log file failed: %s", err)
 		return
 	}
 	logWriter = io.MultiWriter(file)
-	logger = log.New(logWriter, Prefix, log.Ldate|log.Ltime|log.Lmicroseconds|log.LUTC|log.Lshortfile)
+	logger = log.New(logWriter, prefix, log.Ldate|log.Ltime|log.Lmicroseconds|log.LUTC|log.Lshortfile)
 	return
 }
 
+// WriteLog append a given formatted string on the log
 func WriteLog(log string, params ...interface{}) {
 	logInit.Do(func() {
 		if err := initLogger(); err != nil {
@@ -55,6 +58,7 @@ func WriteLog(log string, params ...interface{}) {
 	logger.Print(log, params)
 }
 
+// Logger gives the logger instance to enable logging events
 func Logger() *log.Logger {
 	logInit.Do(func() {
 		if err := initLogger(); err != nil {
@@ -64,6 +68,8 @@ func Logger() *log.Logger {
 	return logger
 }
 
+// WriteLog append a given formatted string on the log and
+// returns an error generated from the string
 func WriteLogAndReturnError(log string, params ...interface{}) error {
 	WriteLog(log, params)
 	return fmt.Errorf(log, params...)

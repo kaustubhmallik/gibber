@@ -46,25 +46,23 @@ const (
 
 // Specific errors related to user flow
 var (
-	incorrectPassword          = errors.New("incorrect password")
-	invalidEmail               = errors.New("invalid email")
-	serverError                = errors.New("server processing error")
-	emptyInput                 = errors.New("empty msg")
-	shortPassword              = errors.New("password should be at 6 characters long")
-	invalidInput               = errors.New("invalid msg")
-	fetchReceivedInvitesFailed = errors.New("failed to fetch received invitations")
-	fetchSentInvitesFailed     = errors.New("failed to fetch sent invitations")
-	cancelInviteFailed         = errors.New("cancelling invite failed")
-	fetchUserFailed            = errors.New("fetch user details failed")
-	readEmailFailed            = errors.New("reading email failed")
-	readPasswordFailed         = errors.New("reading password failed")
-	passwordNotMatched         = errors.New("passwords not matched")
-	internalError              = errors.New("internal error")
-	logoutFailed               = errors.New("logout failed")
-	fetchUserFriendsFailed     = errors.New("fetch user friends failed")
-	insufficientLengthPassword = errors.New("password length is less than required")
-	updateUserNameFailed       = errors.New("update user name failed")
-	updateUserPasswordFailed   = errors.New("update user password failed")
+	errIncorrectPassword          = errors.New("incorrect password")
+	errInvalidEmail               = errors.New("invalid email")
+	errEmptyInput                 = errors.New("empty msg")
+	errShortPassword              = errors.New("password should be at 6 characters long")
+	errInvalidInput               = errors.New("invalid msg")
+	errFetchReceivedInvitesFailed = errors.New("failed to fetch received invitations")
+	errFetchSentInvitesFailed     = errors.New("failed to fetch sent invitations")
+	errCancelInviteFailed         = errors.New("cancelling invite failed")
+	errFetchUserFailed            = errors.New("fetch user details failed")
+	errReadEmailFailed            = errors.New("reading email failed")
+	errReadPasswordFailed         = errors.New("reading password failed")
+	errPasswordNotMatched         = errors.New("passwords not matched")
+	errInternalError              = errors.New("internal error")
+	errLogoutFailed               = errors.New("logout failed")
+	errFetchUserFriendsFailed     = errors.New("fetch user friends failed")
+	errUpdateUserNameFailed       = errors.New("update user name failed")
+	errUpdateUserPasswordFailed   = errors.New("update user password failed")
 )
 
 // user menus for different scenarios
@@ -151,18 +149,18 @@ func (c *client) promptForEmail() {
 		c.Email = strings.ToLower(c.Email) // make email address case insensitive
 		if !user.ValidUserEmail(c.Email) { // check for valid email - regex based
 			log.Logger().Printf("invalid email %s", c.Email)
-			c.sendMessage(invalidEmail.Error(), true)
+			c.sendMessage(errInvalidEmail.Error(), true)
 			if c.Err != nil {
 				log.Logger().Printf("sending invalid email msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 				return
 			}
-			c.Err = invalidEmail
+			c.Err = errInvalidEmail
 			continue
 		}
 		return // successfully read valid email from user
 	}
 	c.exitClient()
-	c.Err = readEmailFailed
+	c.Err = errReadEmailFailed
 }
 
 // existingUser checks whether the user already exists in the system, based on the entered email
@@ -201,10 +199,10 @@ func (c *client) loginUser() {
 		lastLogin, c.Err = c.User.LoginUser(password)
 		if c.Err != nil {
 			log.Logger().Printf("user %s authentication failed: %s", c.Email, c.Err)
-			if c.Err == incorrectPassword {
-				c.sendMessage(failedLogin+": "+incorrectPassword.Error(), true)
+			if c.Err == errIncorrectPassword {
+				c.sendMessage(failedLogin+": "+errIncorrectPassword.Error(), true)
 			} else {
-				c.sendMessage(failedLogin+": "+serverError.Error(), true)
+				c.sendMessage(failedLogin+": "+errInternalError.Error(), true)
 			}
 			continue
 		}
@@ -221,7 +219,7 @@ func (c *client) loginUser() {
 		return
 	}
 	c.exitClient()
-	c.Err = readPasswordFailed
+	c.Err = errReadPasswordFailed
 }
 
 // registerUser registers a new user when a new email is entered
@@ -253,7 +251,7 @@ func (c *client) registerUser() {
 	}
 	c.Err = validatePassword(password)
 	if c.Err != nil {
-		c.sendMessage(shortPassword.Error(), true)
+		c.sendMessage(errShortPassword.Error(), true)
 		return
 	}
 
@@ -262,8 +260,8 @@ func (c *client) registerUser() {
 		log.Logger().Printf("reading user confirm password failed: %s", c.Err)
 		return
 	} else if password != confPassword {
-		log.Logger().Print(passwordNotMatched.Error())
-		c.Err = passwordNotMatched
+		log.Logger().Print(errPasswordNotMatched.Error())
+		c.Err = errPasswordNotMatched
 		return
 	}
 	c.Password = password
@@ -296,7 +294,7 @@ func (c *client) sendAndReceiveMsg(msgToSend string, newline, emptyInputValid bo
 	}
 	if !emptyInputValid && msgRecvd == "" {
 		log.Logger().Printf("empty string received from client %s: %s", (*c.Conn).RemoteAddr(), c.Err)
-		c.sendMessage(emptyInput.Error(), true)
+		c.sendMessage(errEmptyInput.Error(), true)
 		if c.Err != nil {
 			log.Logger().Printf("sending empty msg msg to client %s failed: %s", (*c.Conn).RemoteAddr(), c.Err)
 		}
@@ -315,7 +313,7 @@ func (c *client) userDashboard() {
 			log.Logger().Printf("connection closed from %s", (*c.Conn).RemoteAddr())
 			break
 		} else if err != nil {
-			c.sendMessage(invalidInput.Error(), true)
+			c.sendMessage(errInvalidInput.Error(), true)
 			continue
 		}
 		switch choice {
@@ -337,7 +335,7 @@ func (c *client) userDashboard() {
 		case seeProfileChoice:
 			c.seePersonalProfile()
 		default:
-			c.sendMessage(invalidInput.Error(), true)
+			c.sendMessage(errInvalidInput.Error(), true)
 			continue
 		}
 	}
@@ -420,7 +418,7 @@ func (c *client) seeInvitation() {
 		}
 		choice, err := strconv.Atoi(userInput)
 		if err != nil {
-			c.sendMessage(invalidInput.Error(), true)
+			c.sendMessage(errInvalidInput.Error(), true)
 			continue
 		}
 		switch choice {
@@ -435,7 +433,7 @@ func (c *client) seeInvitation() {
 		case inactiveReceivedInvitesChoice:
 			c.seeInactiveReceivedInvitations()
 		default:
-			c.sendMessage(invalidInput.Error(), true)
+			c.sendMessage(errInvalidInput.Error(), true)
 			continue
 		}
 	}
@@ -447,7 +445,7 @@ func (c *client) seeActiveReceivedInvitations() {
 	invites, err := c.User.GetReceivedInvitations()
 	if err != nil {
 		log.Logger().Printf("error fetching active received invitations for user %s: %s", c.Email, err)
-		c.Err = fetchReceivedInvitesFailed
+		c.Err = errFetchReceivedInvitesFailed
 		return
 	}
 	c.sendMessage("\n**** Active Received Invitations ****\n", true)
@@ -468,7 +466,7 @@ func (c *client) seeActiveReceivedInvitations() {
 	if err != nil || invitationIdx < 0 || invitationIdx > len(invites) {
 		log.Logger().Printf("invitation index msg %s parsing failed from client %s: %s", userInput,
 			(*c.Conn).RemoteAddr(), userInput)
-		c.Err = invalidInput
+		c.Err = errInvalidInput
 		c.sendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
 		return
 	}
@@ -477,7 +475,7 @@ func (c *client) seeActiveReceivedInvitations() {
 	if err != nil {
 		log.Logger().Printf("fetching invitee user %s details failed from client %s: %s", invites[invitationIdx],
 			(*c.Conn).RemoteAddr(), userInput)
-		c.Err = internalError
+		c.Err = errInternalError
 		c.sendMessage("Internal error. Try again", true)
 		c.seeActiveReceivedInvitations()
 		return
@@ -494,7 +492,7 @@ func (c *client) seeActiveReceivedInvitations() {
 		if err != nil {
 			c.sendMessage(fmt.Sprintf("\nAdding %s as friend failed\n", inviteeUser.Email), true)
 			log.Logger().Printf("adding %s as friend to %s failed: %s", c.User.Email, inviteeUser.Email, err)
-			c.Err = internalError
+			c.Err = errInternalError
 		} else {
 			successMsg := fmt.Sprintf("\nAdded %s as friend successfully\n",
 				inviteeUser.FirstName+" "+inviteeUser.LastName)
@@ -509,7 +507,7 @@ func (c *client) seeActiveSentInvitations() {
 	invites, err := c.User.GetSentInvitations()
 	if err != nil {
 		log.Logger().Printf("error while fetching active sent invitations for user %s: %s", c.Email, err)
-		c.Err = fetchSentInvitesFailed
+		c.Err = errFetchSentInvitesFailed
 		return
 	}
 	c.sendMessage("\n**** Active Sent Invitations ****\n", true)
@@ -529,7 +527,7 @@ func (c *client) seeActiveSentInvitations() {
 	if err != nil || invitationIdx < 0 || invitationIdx > len(invites) {
 		log.Logger().Printf("invitation index msg %s parsing failed from client %s: %s", userInput,
 			(*c.Conn).RemoteAddr(), userInput)
-		c.Err = invalidInput
+		c.Err = errInvalidInput
 		c.sendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
 		return
 	}
@@ -552,7 +550,7 @@ func (c *client) seeActiveSentInvitations() {
 		if err != nil {
 			c.sendMessage(fmt.Sprintf("\nCancelling invitation to %s failed\n", inviteeUser.Email), true)
 			log.Logger().Printf("cancelling invitation from %s to %s failed: %s", c.User.Email, inviteeUser.Email, err)
-			c.Err = cancelInviteFailed
+			c.Err = errCancelInviteFailed
 		} else {
 			c.sendMessage(fmt.Sprintf("\nInvitation to %s successfully cancelled\n", inviteeUser.Email), true)
 			log.Logger().Printf("cancelling invitation from %s to %s succeeded", c.User.Email, inviteeUser.Email)
@@ -565,7 +563,7 @@ func (c *client) seeInactiveReceivedInvitations() {
 	invites, err := c.User.GetSentInvitations()
 	if err != nil {
 		log.Logger().Printf("error while fetching active sent invitations for user %s: %s", c.Email, err)
-		c.Err = fetchSentInvitesFailed
+		c.Err = errFetchSentInvitesFailed
 		return
 	}
 	c.sendMessage("\n**** Active Sent Invitations ****\n", true)
@@ -576,7 +574,7 @@ func (c *client) seeInactiveReceivedInvitations() {
 	userInput := c.sendAndReceiveMsg("\nChoose one to cancel(\"b to go back\"): ", false, false)
 	if c.Err != nil {
 		log.Logger().Printf("error while seeing active user invitation sent from client %s: %s", (*c.Conn).RemoteAddr(), err)
-		c.Err = internalError
+		c.Err = errInternalError
 		return
 	}
 	if strings.ToLower(userInput) == "b" {
@@ -586,7 +584,7 @@ func (c *client) seeInactiveReceivedInvitations() {
 	if err != nil || invitationIdx < 0 || invitationIdx > len(invites) {
 		log.Logger().Printf("invitation index msg %s parsing failed from client %s: %s", userInput,
 			(*c.Conn).RemoteAddr(), userInput)
-		c.Err = invalidInput
+		c.Err = errInvalidInput
 		c.sendMessage(fmt.Sprintf("Invalid choice: %s", userInput), true)
 		return
 	}
@@ -594,14 +592,14 @@ func (c *client) seeInactiveReceivedInvitations() {
 	inviteeUser, err := user.GetUserByID(invites[invitationIdx-1]) // user who sent this invitation
 	if err != nil {
 		log.Logger().Printf("error fetching user %s details: %s", invites[invitationIdx-1], err)
-		c.Err = fetchUserFailed
+		c.Err = errFetchUserFailed
 		return
 	}
 
 	confirm := c.sendAndReceiveMsg("\nConfirm(Y/n): ", false, true)
 	if c.Err != nil {
 		log.Logger().Printf("error getting confirmation: %s", c.Err)
-		c.Err = invalidInput
+		c.Err = errInvalidInput
 		return
 	}
 	if strings.ToLower(confirm) == "y" || confirm == "" {
@@ -609,7 +607,7 @@ func (c *client) seeInactiveReceivedInvitations() {
 		if err != nil {
 			c.sendMessage(fmt.Sprintf("\nCancelling invitation to %s failed\n", inviteeUser.Email), true)
 			log.Logger().Printf("cancelling invitation from %s to %s failed: %s", c.User.Email, inviteeUser.Email, err)
-			c.Err = cancelInviteFailed
+			c.Err = errCancelInviteFailed
 		} else {
 			c.sendMessage(fmt.Sprintf("\nInvitation to %s successfully cancelled\n", inviteeUser.Email), true)
 			log.Logger().Printf("cancelling invitation from %s to %s succeeded", c.User.Email, inviteeUser.Email)
@@ -632,7 +630,7 @@ func (c *client) changePassword() {
 		}
 		if err := bcrypt.CompareHashAndPassword([]byte(c.Password), []byte(currPassword)); err != nil {
 			log.Logger().Printf("user %s entered incorrect password: %s", c.Email, err)
-			c.Err = incorrectPassword
+			c.Err = errIncorrectPassword
 			continue
 		}
 		break
@@ -647,7 +645,7 @@ func (c *client) changePassword() {
 		}
 		c.Err = validatePassword(newPassword)
 		if c.Err != nil {
-			c.sendMessage(shortPassword.Error(), true)
+			c.sendMessage(errShortPassword.Error(), true)
 			continue
 		}
 		confirmNewPassword := c.sendAndReceiveMsg("\nConfirm your new password: ", false, false)
@@ -655,20 +653,20 @@ func (c *client) changePassword() {
 			continue
 		}
 		if newPassword != confirmNewPassword {
-			log.Logger().Print(passwordNotMatched)
-			c.sendMessage(passwordNotMatched.Error(), true)
-			c.Err = passwordNotMatched
+			log.Logger().Print(errPasswordNotMatched)
+			c.sendMessage(errPasswordNotMatched.Error(), true)
+			c.Err = errPasswordNotMatched
 			continue
 		}
 		passwordHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 		if err != nil {
 			log.Logger().Println(err)
-			c.Err = internalError
+			c.Err = errInternalError
 			return
 		}
 		err = c.User.UpdatePassword(string(passwordHash))
 		if err != nil {
-			c.Err = updateUserPasswordFailed
+			c.Err = errUpdateUserPasswordFailed
 			c.sendMessage("Password update failed. Please try again.\n", true)
 			return
 		}
@@ -699,7 +697,7 @@ func (c *client) changeName() {
 
 	err := c.User.UpdateName(newFirstName, newLastName)
 	if err != nil {
-		c.Err = updateUserNameFailed
+		c.Err = errUpdateUserNameFailed
 		c.sendMessage("Name update failed. Please try again.\n", true)
 		return
 	}
@@ -746,7 +744,7 @@ func (c *client) seeOnlineFriends() {
 	friends, err := c.User.SeeFriends()
 	if err != nil {
 		log.Logger().Printf("error while fetching online friends for client %s: %s", (*c.Conn).RemoteAddr(), err)
-		c.Err = fetchUserFriendsFailed
+		c.Err = errFetchUserFriendsFailed
 		return
 	}
 	c.sendMessage("\n****************** Online Friends List *****************\n", true)
@@ -758,7 +756,7 @@ func (c *client) seeOnlineFriends() {
 	friendIdx, err := strconv.Atoi(userInput)
 	if err != nil {
 		log.Logger().Printf("error while parsing user msg %s to start chat: %s", userInput, err)
-		c.Err = invalidInput
+		c.Err = errInvalidInput
 		return
 	}
 	c.starChat(friends[friendIdx-1])
@@ -769,7 +767,7 @@ func (c *client) seeFriends() {
 	friends, err := c.User.SeeFriends()
 	if err != nil {
 		log.Logger().Printf("error while fetching friends for client %s: %s", (*c.Conn).RemoteAddr(), err)
-		c.Err = fetchUserFriendsFailed
+		c.Err = errFetchUserFriendsFailed
 		return
 	}
 	c.sendMessage("\n****************** Friends List *****************\n", true)
@@ -792,7 +790,7 @@ func (c *client) logoutUser() {
 		err := c.User.Logout()
 		if err != nil {
 			log.Logger().Printf("error while logging out client %s: %s", c.User.Email, err)
-			c.Err = logoutFailed
+			c.Err = errLogoutFailed
 		}
 	}
 }
@@ -803,7 +801,7 @@ func (c *client) pollIncomingMessages(other primitive.ObjectID, done chan bool, 
 	otherUser, err := user.GetUserByID(other)
 	if err != nil {
 		log.Logger().Printf("error fetching user %s details: %s", c.User.Email, err)
-		c.Err = fetchUserFailed
+		c.Err = errFetchUserFailed
 		return
 	}
 	pollTick := time.NewTicker(incomingMsgPollInterval)
@@ -826,8 +824,8 @@ func (c *client) pollIncomingMessages(other primitive.ObjectID, done chan bool, 
 // validatePassword checks whether the passowrd is an acceptable password or not
 func validatePassword(password string) (err error) {
 	if len(password) < passwordMinLength {
-		log.Logger().Printf("%s password: %s", shortPassword, password)
-		err = insufficientLengthPassword
+		log.Logger().Printf("%s password: %s", errShortPassword, password)
+		err = errShortPassword
 	}
 	return
 }

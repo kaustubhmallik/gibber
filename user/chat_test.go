@@ -13,23 +13,23 @@ import (
 	"time"
 )
 
-var UpdateFailed = errors.New("update failure")
+var updateFailed = errors.New("update failure")
 
-type DatabaseUpdateFail struct {
+type databaseUpdateFail struct {
 	// implement DatabaseUpdate interface with failure update operation
 }
 
-func (d *DatabaseUpdateFail) UpdateOne(ctx context.Context, filter interface{}, update interface{},
+func (d *databaseUpdateFail) UpdateOne(ctx context.Context, filter interface{}, update interface{},
 	opts ...*options.UpdateOptions) (res *mongo.UpdateResult, err error) {
-	err = UpdateFailed
+	err = updateFailed
 	return
 }
 
-type DatabaseUpdateNoEffect struct {
+type databaseUpdateNoEffect struct {
 	// implement DatabaseUpdate interface with failure update operation
 }
 
-func (d *DatabaseUpdateNoEffect) UpdateOne(ctx context.Context, filter interface{}, update interface{},
+func (d *databaseUpdateNoEffect) UpdateOne(ctx context.Context, filter interface{}, update interface{},
 	opts ...*options.UpdateOptions) (res *mongo.UpdateResult, err error) {
 	res = new(mongo.UpdateResult) // default count values (fields) will be zero which is required
 	return
@@ -47,11 +47,11 @@ func TestSendMessage(t *testing.T) {
 	err := SendMessage(sender, receiver, "test message", datastore.MongoConn().Collection(chatCollection))
 	assert.NoError(t, err, "new document should be created for the chat")
 
-	err = SendMessage(sender, receiver, "test message", new(DatabaseUpdateFail))
-	assert.Equal(t, UpdateFailed, err, "operation should fail")
+	err = SendMessage(sender, receiver, "test message", new(databaseUpdateFail))
+	assert.Equal(t, updateFailed, err, "operation should fail")
 
-	err = SendMessage(sender, receiver, "test message", new(DatabaseUpdateNoEffect))
-	assert.Equal(t, datastore.NoDocUpdate, err, "operation should fail")
+	err = SendMessage(sender, receiver, "test message", new(databaseUpdateNoEffect))
+	assert.Equal(t, datastore.ErrNoDocUpdate, err, "operation should fail")
 }
 
 func TestPrintMessage(t *testing.T) {
