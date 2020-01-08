@@ -15,8 +15,8 @@ type Connection struct {
 	Err    error
 }
 
-// writes a single line on writer by appending the newline to the passed string
-func (c *Connection) SendMessage(msg string, newline bool) {
+// sendMessage sends a given message to the client using underlying connection write buffer
+func (c *Connection) sendMessage(msg string, newline bool) {
 	if newline {
 		msg += "\n"
 	}
@@ -32,8 +32,8 @@ func (c *Connection) SendMessage(msg string, newline bool) {
 	}
 }
 
-// reads a single line from scanner
-func (c *Connection) ReadMessage() (content string) {
+// readMessage reads a single line (until end-of-line) of user input from connection read stream
+func (c *Connection) readMessage() (content string) {
 	content, c.Err = c.Reader.ReadString('\n')
 	content = strings.TrimRight(content, "\n")
 	if c.Err != nil {

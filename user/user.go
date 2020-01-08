@@ -174,7 +174,7 @@ func GetUserByID(objectID primitive.ObjectID) (user *User, err error) {
 	return
 }
 
-// LoginUser logs in a given user with the given password. In case of successful login, it returns
+// loginUser logs in a given user with the given password. In case of successful login, it returns
 // the last login time of the user. In case of password mismatch or any other issue, an error will be raised.
 func (u *User) LoginUser(password string) (lastLoginTime string, err error) {
 	fetchDBUser, err := GetUserByEmail(u.Email)
@@ -312,7 +312,7 @@ func (u *User) UpdateName(firstName, lastName string) (err error) {
 	return
 }
 
-// SeeOnlineFriends fetches the details of the users which are currently online
+// seeOnlineFriends fetches the details of the users which are currently online
 func (u *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 	//fetchedUser := &User{}
 	//MongoConn().Collection(userCollection).FindOne(
@@ -371,7 +371,7 @@ func (u *User) Logout() (err error) {
 	return
 }
 
-// SendInvitation sends an invite to a given user
+// sendInvitation sends an invite to a given user
 func (u *User) SendInvitation(recv *User) (err error) {
 	session, err := datastore.MongoConn().Client().StartSession()
 	if err != nil {
@@ -580,7 +580,7 @@ func (u *User) CancelInvitation(user *User) error {
 	return nil
 }
 
-// SeeFriends fetches the list of userIDs which are friends with current user
+// seeFriends fetches the list of userIDs which are friends with current user
 func (u *User) SeeFriends() (friends []primitive.ObjectID, err error) {
 	friendData := Friends{}
 	err = datastore.MongoConn().Collection(FriendsCollection).FindOne(

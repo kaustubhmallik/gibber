@@ -52,7 +52,7 @@ func FetchIncomingMessages(timestamp time.Time, self, other primitive.ObjectID) 
 	return
 }
 
-// SendMessage sends a given message from sender to receiver
+// sendMessage sends a given message from sender to receiver
 func SendMessage(sender, receiver primitive.ObjectID, text string, updater datastore.DatabaseUpdater) (err error) {
 	msg := message{
 		Sender:    sender,
