@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-var updateFailed = errors.New("update failure")
+var errUpdateFailed = errors.New("update failure")
 
 type databaseUpdateFail struct {
 	// implement DatabaseUpdate interface with failure update operation
@@ -21,7 +21,7 @@ type databaseUpdateFail struct {
 
 func (d *databaseUpdateFail) UpdateOne(ctx context.Context, filter interface{}, update interface{},
 	opts ...*options.UpdateOptions) (res *mongo.UpdateResult, err error) {
-	err = updateFailed
+	err = errUpdateFailed
 	return
 }
 
@@ -48,7 +48,7 @@ func TestSendMessage(t *testing.T) {
 	assert.NoError(t, err, "new document should be created for the chat")
 
 	err = SendMessage(sender, receiver, "test message", new(databaseUpdateFail))
-	assert.Equal(t, updateFailed, err, "operation should fail")
+	assert.Equal(t, errUpdateFailed, err, "operation should fail")
 
 	err = SendMessage(sender, receiver, "test message", new(databaseUpdateNoEffect))
 	assert.Equal(t, datastore.ErrNoDocUpdate, err, "operation should fail")

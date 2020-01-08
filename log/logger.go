@@ -68,7 +68,7 @@ func Logger() *log.Logger {
 	return logger
 }
 
-// WriteLog append a given formatted string on the log and
+// WriteLogAndReturnError append a given formatted string on the log and
 // returns an error generated from the string
 func WriteLogAndReturnError(log string, params ...interface{}) error {
 	WriteLog(log, params)
