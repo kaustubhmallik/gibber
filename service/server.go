@@ -13,6 +13,7 @@ import (
 	"strings"
 )
 
+// client connection type
 const connType = "tcp"
 
 const (
@@ -20,7 +21,8 @@ const (
 	repo         = "gibber/"
 )
 
-
+// StartServer starts the chat server and opens it given patterns of hosts and the given port
+// The context is taken to signal that the server is initialized successfully
 func StartServer(host, port string, complete context.CancelFunc) error {
 	defer complete() // mark the context as completed/cancelled
 	address := fmt.Sprintf("%s:%s", host, port)
@@ -44,10 +46,12 @@ func StartServer(host, port string, complete context.CancelFunc) error {
 	}
 }
 
+// establishClientConnection setups the read and write streams to allow communication b/w server and client
+// It passes the flow to the user back by showing landing page (dashboard)
 func establishClientConnection(conn *net.Conn) {
 	// when connection is closed from client, the resource need to be released
 	defer closeClientConnection(conn)
-	client := &Client{}
+	client := &client{}
 	client.User = &user.User{}
 	client.Connection = &Connection{}
 	client.Conn = conn
@@ -55,25 +59,28 @@ func establishClientConnection(conn *net.Conn) {
 	client.Reader = bufio.NewReader(*client.Conn)
 	client.Writer = bufio.NewWriter(*client.Conn)
 
-	client.ShowWelcomeMessage()
+	client.showWelcomeMessage()
 	if client.Err != nil {
 		return
 	}
 
-	client.Authenticate()
-	defer client.LogoutUser()
+	client.authenticate()
+	defer client.logoutUser()
 	if client.Err != nil {
 		return
 	}
 
-	client.UserDashboard()
+	client.userDashboard()
 }
 
+// closeClientConnection safely closes the connection when the client exits or gets disconnected
+// to avoid any memory leak
 func closeClientConnection(conn *net.Conn) {
 	log.Logger().Printf("client %s => closing connection from internal", (*conn).RemoteAddr().String())
 	_ = (*conn).Close()
 }
 
+// printLogo prints the service logo (via logger)
 func printLogo() (err error) {
 	filePath := projectRootPath() + logoFilePath
 	logoData, err := ioutil.ReadFile(filePath)
@@ -85,6 +92,8 @@ func printLogo() (err error) {
 	return
 }
 
+// projectRootPath gives the path to the project root
+// Useful for navigating files inside the repo
 func projectRootPath() (path string) {
 	_, fileStr, _, _ := runtime.Caller(0)
 	rootPath := strings.Split(filepath.Dir(fileStr), repo)

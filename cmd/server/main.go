@@ -7,12 +7,13 @@ import (
 	"time"
 )
 
+// details of the endpoint exposed
 const (
-	Host = "127.0.0.1"
-	Port = "7000"
+	host = "127.0.0.1"
+	port = "7000"
 )
 
 func main() {
 	_, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-	log.Fatal(service.StartServer(Host, Port, cancelFunc))
+	log.Fatal(service.StartServer(host, port, cancelFunc))
 }

@@ -13,44 +13,48 @@ import (
 
 // user document collection name and fields
 const (
-	ChatCollection = "chats"
-	ChatUser1      = "user_1"
-	ChatUser2      = "user_2"
-	ChatMessages   = "messages"
+	chatCollection = "chats"
+	chatUser1      = "user_1"
+	chatUser2      = "user_2"
+	chatMessages   = "messages"
 )
 
-type Message struct {
+// message depicts the way in which a chat message is stored in the database
+type message struct {
 	Sender    primitive.ObjectID `json:"sender" bson:"sender"`
 	Text      string             `json:"text" bson:"text"`
 	Timestamp time.Time          `json:"timestamp,omitempty" bson:"timestamp"`
 }
 
-type Chat struct {
+// chat stores the conversation b/w two users
+type chat struct {
 	ID       primitive.ObjectID `json:"-" bson:"_id"`
 	User1    primitive.ObjectID `json:"user_1" bson:"user_1"`
 	User2    primitive.ObjectID `json:"user_2" bson:"user_2"`
-	Messages []Message          `json:"messages" bson:"messages"`
+	Messages []message          `json:"messages" bson:"messages"`
 }
 
-func GetChatByUserIDs(userID1, userID2 primitive.ObjectID, finder datastore.DatabaseFinder) (chat *Chat, err error) {
-	chat = &Chat{}
-	if userID1.Hex() > userID2.Hex() { // ordering IDs
-		userID1, userID2 = userID2, userID1
-	}
-	err = finder.FindOne(context.Background(),
-		bson.D{
-			{Key: ChatUser1, Value: userID1},
-			{Key: ChatUser2, Value: userID2},
-		}).
-		Decode(chat)
+// FetchIncomingMessages fetches the incoming messages for the given user from the other user
+// that came after given timestamp
+func FetchIncomingMessages(timestamp time.Time, self, other primitive.ObjectID) (msgs []message, err error) {
+	chat, err := getChatByUserIDs(self, other, datastore.MongoConn().Collection(chatCollection))
 	if err != nil {
-		log.Logger().Printf("no chat found with user IDs %s and %s", userID1, userID2) // other errors are not expected
+		log.Logger().Printf("error fetching chat for user %s: %s", self, err)
+		return
+	}
+	msgs = make([]message, 0)
+	for _, msg := range chat.Messages {
+		if msg.Timestamp.After(timestamp) && msg.Sender.String() == other.String() {
+			msgs = append(msgs, msg)
+			timestamp = msg.Timestamp
+		}
 	}
 	return
 }
 
+// sendMessage sends a given message from sender to receiver
 func SendMessage(sender, receiver primitive.ObjectID, text string, updater datastore.DatabaseUpdater) (err error) {
-	msg := Message{
+	msg := message{
 		Sender:    sender,
 		Text:      text,
 		Timestamp: time.Now().UTC(),
@@ -60,11 +64,11 @@ func SendMessage(sender, receiver primitive.ObjectID, text string, updater datas
 	}
 	res, err := updater.UpdateOne(context.Background(),
 		bson.D{
-			{Key: ChatUser1, Value: sender},
-			{Key: ChatUser2, Value: receiver},
+			{Key: chatUser1, Value: sender},
+			{Key: chatUser2, Value: receiver},
 		},
 		bson.D{
-			{Key: datastore.MongoPushOperator, Value: bson.D{{Key: ChatMessages, Value: msg}}},
+			{Key: datastore.MongoPushOperator, Value: bson.D{{Key: chatMessages, Value: msg}}},
 		},
 		options.Update().SetUpsert(true))
 	if err != nil {
@@ -76,24 +80,27 @@ func SendMessage(sender, receiver primitive.ObjectID, text string, updater datas
 	return
 }
 
-//func PrintMessage(msg Message, self, other *User) string {
-func PrintMessage(msg Message, sender string) string {
-	return fmt.Sprintf("%s (%s): %s", sender, msg.Timestamp, msg.Text)
-}
-
-// sort on timestamp
-func FetchIncomingMessages(timestamp time.Time, self, other primitive.ObjectID) (msgs []Message, err error) {
-	chat, err := GetChatByUserIDs(self, other, datastore.MongoConn().Collection(ChatCollection))
-	if err != nil {
-		log.Logger().Printf("error fetching chat for user %s: %s", self, err)
-		return
+// getChatByUserIDs fetches the chat b/w two users
+// it sorts the user IDs as to avoid storing both combination of userIds in the database
+func getChatByUserIDs(userID1, userID2 primitive.ObjectID, finder datastore.DatabaseFinder) (ch *chat, err error) {
+	ch = &chat{}
+	if userID1.Hex() > userID2.Hex() { // ordering IDs
+		userID1, userID2 = userID2, userID1
 	}
-	msgs = make([]Message, 0)
-	for _, msg := range chat.Messages {
-		if msg.Timestamp.After(timestamp) && msg.Sender.String() == other.String() {
-			msgs = append(msgs, msg)
-			timestamp = msg.Timestamp
-		}
+	err = finder.FindOne(context.Background(),
+		bson.D{
+			{Key: chatUser1, Value: userID1},
+			{Key: chatUser2, Value: userID2},
+		}).
+		Decode(ch)
+	if err != nil {
+		log.Logger().Printf("no ch found with user IDs %s and %s", userID1, userID2) // other errors are not expected
 	}
 	return
+}
+
+// printMessage gives the string representation for a given message
+// TODO: convert it into a Stringify interface and use it
+func printMessage(msg message, sender string) string {
+	return fmt.Sprintf("%s (%s): %s", sender, msg.Timestamp, msg.Text)
 }

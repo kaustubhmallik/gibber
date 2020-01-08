@@ -8,19 +8,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// user invites collection and fields
 const (
-	UserInvitesCollection = "user_invites"
+	userInvitesCollection = "user_invites"
+	userIdField           = "user_id"
 )
 
-// user invites data fields
-const (
-	SentInvitesField     = "sent"
-	ReceivedInvitesField = "received"
-	UserIdField          = "user_id"
-)
-
-// stores reference for all the invitations sent and received associated with a user
-type UserInvites struct {
+// userInvites stores reference for all the invitations sent and received associated with a user
+type userInvites struct {
 	ID        primitive.ObjectID   `bson:"_id" json:"-"`
 	UserID    primitive.ObjectID   `bson:"user_id" json:"user_id"`     // object ID of user
 	Sent      []primitive.ObjectID `bson:"sent" json:"sent"`           // active sent request by user
@@ -30,8 +25,9 @@ type UserInvites struct {
 	Cancelled []primitive.ObjectID `bson:"cancelled" json:"cancelled"` // cancelled sent requests by user
 }
 
-func CreateUserInvitesData(userId interface{}, ctx context.Context, dbConn datastore.DatabaseInserter) (userInvitesDataId interface{}, err error) {
-	userInvites := &UserInvites{
+// createUserInvitesData creates the empty invites collection for the given user
+func createUserInvitesData(userId interface{}, ctx context.Context, dbConn datastore.DatabaseInserter) (userInvitesDataId interface{}, err error) {
+	userInvites := &userInvites{
 		UserID:    userId.(primitive.ObjectID),
 		Sent:      make([]primitive.ObjectID, 0),
 		Received:  make([]primitive.ObjectID, 0),
@@ -39,7 +35,7 @@ func CreateUserInvitesData(userId interface{}, ctx context.Context, dbConn datas
 		Rejected:  make([]primitive.ObjectID, 0),
 		Cancelled: make([]primitive.ObjectID, 0),
 	}
-	userInvitesDataMap, _ := GetMap(*userInvites)
+	userInvitesDataMap, _ := getMap(*userInvites)
 	userInvitesDataMap["user_id"] = userId.(primitive.ObjectID)
 	res, err := dbConn.InsertOne(ctx, userInvitesDataMap)
 	if err != nil {
@@ -50,11 +46,13 @@ func CreateUserInvitesData(userId interface{}, ctx context.Context, dbConn datas
 	return
 }
 
-func (u *UserInvites) String() string {
+// String representation for a user
+func (u *userInvites) String() string {
 	return u.ID.String()
 }
 
-func GetMap(data interface{}) (dataMap map[string]interface{}, err error) {
+// getMap gives the map converted form for a given struct, to be used to store as document (JSON) in mongo
+func getMap(data interface{}) (dataMap map[string]interface{}, err error) {
 	if data == nil {
 		return
 	}

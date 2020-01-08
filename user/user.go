@@ -17,34 +17,37 @@ import (
 
 // user document collection name and fields
 const (
-	UserCollection     = "users"
-	UserFirstNameField = "first_name"
-	UserLastNameField  = "last_name"
-	UserEmailField     = "email"
-	UserLoggedIn       = "logged_in"
-	LastLogin          = "last_login"
-	UserPasswordField  = "password"
-	InvitesDataField   = "invites_data_id"
+	userCollection     = "users"
+	userFirstNameField = "first_name"
+	userLastNameField  = "last_name"
+	userEmailField     = "email"
+	userLoggedIn       = "logged_in"
+	lastLogin          = "last_login"
+	userPasswordField  = "password"
+	invitesDataField   = "invites_data_id"
 )
 
-var (
-	FetchUserFailed   = errors.New("fetch user details failed")
-	InvalidInviteType = errors.New("invalid invite type")
-)
+const validEmailRegex = `^[\w\.=-]+@[\w\.-]+\.[\w]{2,3}$`
 
-const ValidEmailRegex = `^[\w\.=-]+@[\w\.-]+\.[\w]{2,3}$`
-
-type InviteType string
-
+// invitation types
 const (
-	Sent      InviteType = "sent"
-	Received  InviteType = "received"
-	Accepted  InviteType = "accepted"
-	Rejected  InviteType = "rejected"
-	Cancelled InviteType = "cancelled"
+	sent      inviteType = "sent"
+	received  inviteType = "received"
+	accepted  inviteType = "accepted"
+	rejected  inviteType = "rejected"
+	cancelled inviteType = "cancelled"
 )
 
-// User details
+// user invite errors
+var (
+	fetchUserFailed   = errors.New("fetch user details failed")
+	invalidInviteType = errors.New("invalid invite type")
+)
+
+// an enum to restrict invitation types
+type inviteType string
+
+// User captures the details about a client connected to the service
 type User struct {
 	ID        primitive.ObjectID `bson:"_id" json:"-"`
 	FirstName string             `bson:"first_name" json:"first_name"`
@@ -56,9 +59,10 @@ type User struct {
 	InvitesId primitive.ObjectID `bson:"invites_data_id" json:"invites_data_id"` // object ID of invitesData
 }
 
+// CreateUser create a new user with given user details
 func CreateUser(user *User) (userId interface{}, err error) {
 	var fetchUser *User
-	if user.ExistingUser() {
+	if user.existingUser() {
 		reason := fmt.Sprintf("user %#v already exist with email %s", fetchUser, user.Email) // passed email userId should be unique
 		log.Logger().Printf(reason)
 		err = errors.New(reason)
@@ -70,7 +74,7 @@ func CreateUser(user *User) (userId interface{}, err error) {
 	}
 	user.Password = string(hashedPassword)
 	user.LoggedIn = true // as user is just created, he becomes online, until he quits the session
-	userMap, _ := GetMap(user)
+	userMap, _ := getMap(user)
 	userMap["last_login"] = time.Now().UTC()
 
 	session, err := datastore.MongoConn().Client().StartSession()
@@ -87,7 +91,7 @@ func CreateUser(user *User) (userId interface{}, err error) {
 
 	err = mongo.WithSession(context.Background(), session, func(sc mongo.SessionContext) (er error) {
 		// create user
-		res, er := datastore.MongoConn().Collection(UserCollection).InsertOne(sc, userMap)
+		res, er := datastore.MongoConn().Collection(userCollection).InsertOne(sc, userMap)
 		if er != nil {
 			_ = session.AbortTransaction(sc)
 			er = fmt.Errorf("error while creating new user %#v: %s", userMap, er)
@@ -101,7 +105,7 @@ func CreateUser(user *User) (userId interface{}, err error) {
 
 		// create user_invite
 		var invitesId primitive.ObjectID
-		invitesDataId, er := CreateUserInvitesData(userId, sc, datastore.MongoConn().Collection(UserInvitesCollection))
+		invitesDataId, er := createUserInvitesData(userId, sc, datastore.MongoConn().Collection(userInvitesCollection))
 		invitesId = invitesDataId.(primitive.ObjectID)
 		if er != nil {
 			_ = session.AbortTransaction(sc)
@@ -110,11 +114,11 @@ func CreateUser(user *User) (userId interface{}, err error) {
 		}
 
 		// update invite_user doc ID in user's doc
-		updateRes, er := datastore.MongoConn().Collection(UserCollection).UpdateOne(
+		updateRes, er := datastore.MongoConn().Collection(userCollection).UpdateOne(
 			sc,
 			bson.M{datastore.ObjectID: userId},
 			bson.D{{
-				Key: datastore.MongoSetOperator, Value: bson.D{{Key: InvitesDataField, Value: invitesId}},
+				Key: datastore.MongoSetOperator, Value: bson.D{{Key: invitesDataField, Value: invitesId}},
 			}})
 		if er != nil || updateRes.ModifiedCount != 1 {
 			_ = session.AbortTransaction(sc)
@@ -138,24 +142,26 @@ func CreateUser(user *User) (userId interface{}, err error) {
 	return
 }
 
+// GetUserByEmail gets the details of a user by email
 func GetUserByEmail(email string) (user *User, err error) {
-	collection := datastore.MongoConn().Collection(UserCollection)
+	collection := datastore.MongoConn().Collection(userCollection)
 	user = &User{}
-	err = collection.FindOne(context.Background(), bson.M{UserEmailField: email}).Decode(user)
+	err = collection.FindOne(context.Background(), bson.M{userEmailField: email}).Decode(user)
 	if err == mongo.ErrNoDocuments {
 		log.Logger().Printf("no user found with email: %s", email)
 		// no changes in error so that it can be used to verify unique email ID before insertion
 	} else if err != nil {
 		log.Logger().Printf("decoding(unmarshal) user fetch result for email %s failed: %s", email, err)
-		err = FetchUserFailed
+		err = fetchUserFailed
 	}
 	return
 }
 
+// GetUserByEmail gets the details of a user by ID (object ID)
 func GetUserByID(objectID primitive.ObjectID) (user *User, err error) {
 	user = &User{}
 	err = datastore.MongoConn().
-		Collection(UserCollection).
+		Collection(userCollection).
 		FindOne(context.Background(), bson.M{datastore.ObjectID: objectID}).
 		Decode(user)
 	if err != nil {
@@ -168,8 +174,9 @@ func GetUserByID(objectID primitive.ObjectID) (user *User, err error) {
 	return
 }
 
-// raises an error if authentication fails due to any reason, including password mismatch
-func (u *User) LoginUser(password string) (lastLogin string, err error) {
+// loginUser logs in a given user with the given password. In case of successful login, it returns
+// the last login time of the user. In case of password mismatch or any other issue, an error will be raised.
+func (u *User) LoginUser(password string) (lastLoginTime string, err error) {
 	fetchDBUser, err := GetUserByEmail(u.Email)
 	if err != nil {
 		log.Logger().Printf("authenticate u failed: %s", err)
@@ -181,11 +188,11 @@ func (u *User) LoginUser(password string) (lastLogin string, err error) {
 		return
 	}
 
-	result, err := datastore.MongoConn().Collection(UserCollection).UpdateOne(
+	result, err := datastore.MongoConn().Collection(userCollection).UpdateOne(
 		context.Background(),
 		bson.D{
 			{
-				Key:   UserEmailField,
+				Key:   userEmailField,
 				Value: u.Email,
 			},
 		},
@@ -194,11 +201,11 @@ func (u *User) LoginUser(password string) (lastLogin string, err error) {
 				Key: datastore.MongoSetOperator,
 				Value: bson.D{
 					{
-						Key:   UserLoggedIn,
+						Key:   userLoggedIn,
 						Value: true,
 					},
 					{
-						Key:   LastLogin,
+						Key:   lastLogin,
 						Value: time.Now().UTC(),
 					},
 				},
@@ -222,29 +229,17 @@ func (u *User) LoginUser(password string) (lastLogin string, err error) {
 	u.LastLogin = fetchDBUser.LastLogin
 	u.LoggedIn = fetchDBUser.LoggedIn
 	u.InvitesId = fetchDBUser.InvitesId
-	lastLogin = fetchDBUser.LastLogin.Format(time.RFC3339)
+	lastLoginTime = fetchDBUser.LastLogin.Format(time.RFC3339)
 	return
 }
 
-func (u *User) ExistingUser() (exists bool) {
-	_, err := GetUserByEmail(u.Email) // if u not exists, it will throw an error
-	if err == mongo.ErrNoDocuments {
-		return
-	}
-	if err != nil { // some other error occurred
-		log.Logger().Printf("u email unique check failed: %s", err)
-		return
-	}
-	exists = true
-	return
-}
-
+// UpdatePassword updates the password for the current user
 func (u *User) UpdatePassword(newEncryptedPassword string) (err error) {
-	result, err := datastore.MongoConn().Collection(UserCollection).UpdateOne(
+	result, err := datastore.MongoConn().Collection(userCollection).UpdateOne(
 		context.Background(),
 		bson.D{
 			{
-				Key:   UserEmailField,
+				Key:   userEmailField,
 				Value: u.Email,
 			},
 		},
@@ -253,7 +248,7 @@ func (u *User) UpdatePassword(newEncryptedPassword string) (err error) {
 				Key: datastore.MongoSetOperator,
 				Value: bson.D{
 					{
-						Key:   UserPasswordField,
+						Key:   userPasswordField,
 						Value: newEncryptedPassword,
 					},
 				},
@@ -267,30 +262,31 @@ func (u *User) UpdatePassword(newEncryptedPassword string) (err error) {
 	return
 }
 
+// UpdateName updates the first and/or last name of the given user
 func (u *User) UpdateName(firstName, lastName string) (err error) {
 	var updatedDoc bson.D
 	if firstName != "" && lastName != "" {
 		updatedDoc = bson.D{
 			{
-				Key:   UserFirstNameField,
+				Key:   userFirstNameField,
 				Value: firstName,
 			},
 			{
-				Key:   UserLastNameField,
+				Key:   userLastNameField,
 				Value: lastName,
 			},
 		}
 	} else if firstName != "" {
 		updatedDoc = bson.D{
 			{
-				Key:   UserFirstNameField,
+				Key:   userFirstNameField,
 				Value: firstName,
 			},
 		}
 	} else if lastName != "" {
 		updatedDoc = bson.D{
 			{
-				Key:   UserLastNameField,
+				Key:   userLastNameField,
 				Value: lastName,
 			},
 		}
@@ -298,11 +294,11 @@ func (u *User) UpdateName(firstName, lastName string) (err error) {
 		log.Logger().Println("nothing to update as both firstName and lastName are blank")
 		return
 	}
-	result, err := datastore.MongoConn().Collection(UserCollection).UpdateOne(
+	result, err := datastore.MongoConn().Collection(userCollection).UpdateOne(
 		context.Background(),
 		bson.D{
 			{
-				Key:   UserEmailField,
+				Key:   userEmailField,
 				Value: u.Email,
 			},
 		},
@@ -316,12 +312,13 @@ func (u *User) UpdateName(firstName, lastName string) (err error) {
 	return
 }
 
+// seeOnlineFriends fetches the details of the users which are currently online
 func (u *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 	//fetchedUser := &User{}
-	//MongoConn().Collection(UserCollection).FindOne(
+	//MongoConn().Collection(userCollection).FindOne(
 	//	context.Background(),
 	//	bson.M{
-	//		UserEmailField: u.Email,
+	//		userEmailField: u.Email,
 	//	}).Decode(fetchedUser)
 	//_, err = GetUserInvitesData(fetchedUser.InvitesId)
 	//if err != nil {
@@ -336,11 +333,11 @@ func (u *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 	//for _, acceptedInvite := range friendEmails {
 	//	friend := &User{}
 	//	if acceptedInvite.Sender != u.Email {
-	//		MongoConn().Collection(UserCollection).FindOne(
+	//		MongoConn().Collection(userCollection).FindOne(
 	//			context.Background(),
 	//			bson.M{
-	//				UserEmailField: acceptedInvite.Sender,
-	//				UserLoggedIn:   true,
+	//				userEmailField: acceptedInvite.Sender,
+	//				userLoggedIn:   true,
 	//			}).Decode(friend)
 	//	}
 	//	if friend.Password != "" { // a u is found
@@ -351,14 +348,16 @@ func (u *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 	return
 }
 
+// Logout logs out the current user from the service
+// TODO: avoid multiple login for a single user
 func (u *User) Logout() (err error) {
-	result, err := datastore.MongoConn().Collection(UserCollection).UpdateOne(
+	result, err := datastore.MongoConn().Collection(userCollection).UpdateOne(
 		context.Background(),
 		bson.D{
-			{Key: UserEmailField, Value: u.Email},
+			{Key: userEmailField, Value: u.Email},
 		},
 		bson.D{
-			{Key: datastore.MongoSetOperator, Value: bson.D{{Key: UserLoggedIn, Value: false}}},
+			{Key: datastore.MongoSetOperator, Value: bson.D{{Key: userLoggedIn, Value: false}}},
 		},
 	)
 	if err != nil {
@@ -372,6 +371,7 @@ func (u *User) Logout() (err error) {
 	return
 }
 
+// sendInvitation sends an invite to a given user
 func (u *User) SendInvitation(recv *User) (err error) {
 	session, err := datastore.MongoConn().Client().StartSession()
 	if err != nil {
@@ -386,13 +386,13 @@ func (u *User) SendInvitation(recv *User) (err error) {
 	}
 
 	err = mongo.WithSession(context.Background(), session, func(sc mongo.SessionContext) (er error) {
-		result, er := datastore.MongoConn().Collection(UserInvitesCollection).UpdateOne(
+		result, er := datastore.MongoConn().Collection(userInvitesCollection).UpdateOne(
 			sc,
 			bson.D{
-				{Key: UserIdField, Value: u.ID},
+				{Key: userIdField, Value: u.ID},
 			},
 			bson.D{
-				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: SentInvitesField, Value: recv.ID}}},
+				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: string(sent), Value: recv.ID}}},
 			},
 		)
 		if er != nil {
@@ -404,13 +404,13 @@ func (u *User) SendInvitation(recv *User) (err error) {
 			log.Logger().Printf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
 		}
 
-		result, er = datastore.MongoConn().Collection(UserInvitesCollection).UpdateOne(
+		result, er = datastore.MongoConn().Collection(userInvitesCollection).UpdateOne(
 			sc,
 			bson.D{
-				{Key: UserIdField, Value: recv.ID},
+				{Key: userIdField, Value: recv.ID},
 			},
 			bson.D{
-				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: ReceivedInvitesField, Value: u.ID}}},
+				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: string(received), Value: u.ID}}},
 			},
 		)
 		if er != nil {
@@ -436,6 +436,8 @@ func (u *User) SendInvitation(recv *User) (err error) {
 	return
 }
 
+// AddFriend accepts the invite sent from a given user to the current user. After this action,
+// they become friends, and can start a chat (conversation)
 func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 	// Delete the received request from u's invite data (THINK OF SOFT DELETE) - Done
 	// Delete the sent request from u's invites data (THINK OF SOFT DELETE) - Done
@@ -455,11 +457,11 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 
 	err = mongo.WithSession(context.Background(), session, func(sc mongo.SessionContext) (er error) {
 		var res *mongo.UpdateResult
-		res, er = datastore.MongoConn().Collection(UserInvitesCollection).UpdateOne(
+		res, er = datastore.MongoConn().Collection(userInvitesCollection).UpdateOne(
 			sc,
-			bson.M{UserIdField: u.ID},
+			bson.M{userIdField: u.ID},
 			bson.D{
-				{Key: datastore.MongoPullOperator, Value: bson.D{{Key: ReceivedInvitesField, Value: userID}}},
+				{Key: datastore.MongoPullOperator, Value: bson.D{{Key: string(received), Value: userID}}},
 			})
 		if er != nil {
 			_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
@@ -475,11 +477,11 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 			return
 		}
 
-		res, er = datastore.MongoConn().Collection(UserInvitesCollection).UpdateOne(
+		res, er = datastore.MongoConn().Collection(userInvitesCollection).UpdateOne(
 			sc,
-			bson.M{UserIdField: userID},
+			bson.M{userIdField: userID},
 			bson.D{
-				{Key: datastore.MongoPullOperator, Value: bson.D{{Key: SentInvitesField, Value: u.ID}}},
+				{Key: datastore.MongoPullOperator, Value: bson.D{{Key: string(sent), Value: u.ID}}},
 			})
 		if er != nil {
 			_ = session.AbortTransaction(sc)
@@ -498,7 +500,7 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 		// using upsert: true to create the friends document if non-existent
 		res, er = datastore.MongoConn().Collection(FriendsCollection).UpdateOne(
 			sc,
-			bson.M{UserIdField: u.ID},
+			bson.M{userIdField: u.ID},
 			bson.D{
 				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: FriendsField, Value: userID}}},
 			},
@@ -516,7 +518,7 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 		// using upsert: true to create the friends document if non-existent
 		res, err = datastore.MongoConn().Collection(FriendsCollection).UpdateOne(
 			sc,
-			bson.M{UserIdField: userID},
+			bson.M{userIdField: userID},
 			bson.D{
 				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: FriendsField, Value: u.ID}}},
 			},
@@ -545,36 +547,45 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 	return
 }
 
+// GetSentInvitations gets the list of sent invites to the other users, which are not
+// yet accepted or rejected i.e. they are still active
 func (u *User) GetSentInvitations() ([]primitive.ObjectID, error) {
-	return u.getInvitations(Sent)
+	return u.getInvitations(sent)
 }
 
+// GetReceivedInvitations gets the list of received invites from other users to current user,
+// which are not yet accepted or rejected
 func (u *User) GetReceivedInvitations() ([]primitive.ObjectID, error) {
-	return u.getInvitations(Received)
+	return u.getInvitations(received)
 }
 
+// GetCanceledSentInvitations gets the list of cancelled invites sent to other users
 func (u *User) GetCanceledSentInvitations() ([]primitive.ObjectID, error) {
-	return u.getInvitations(Cancelled)
+	return u.getInvitations(cancelled)
 }
 
+// GetAcceptedInvitations gets the list of accepted invites
 func (u *User) GetAcceptedInvitations() ([]primitive.ObjectID, error) {
-	return u.getInvitations(Accepted)
+	return u.getInvitations(accepted)
 }
 
+// GetRejectedInvitations gets the list of rejected invites
 func (u *User) GetRejectedInvitations() ([]primitive.ObjectID, error) {
-	return u.getInvitations(Rejected)
+	return u.getInvitations(rejected)
 }
 
+// CancelInvitation cancels the invite received from a given user
 func (u *User) CancelInvitation(user *User) error {
 	log.Logger().Printf("user %s invitation cancelled", user.Email)
 	return nil
 }
 
+// seeFriends fetches the list of userIDs which are friends with current user
 func (u *User) SeeFriends() (friends []primitive.ObjectID, err error) {
 	friendData := Friends{}
 	err = datastore.MongoConn().Collection(FriendsCollection).FindOne(
 		context.Background(),
-		bson.M{UserIdField: u.ID}).
+		bson.M{userIdField: u.ID}).
 		Decode(&friendData)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -588,24 +599,18 @@ func (u *User) SeeFriends() (friends []primitive.ObjectID, err error) {
 	return
 }
 
-// shows the basic details about a given user based on the object
-func UserProfile(userID primitive.ObjectID) (string, error) {
-	user, err := GetUserByID(userID)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%s %s : %s", user.FirstName, user.LastName, user.Email), nil
-}
-
+// String representation of a user
 func (u *User) String() string {
 	return u.ID.String()
 }
 
-func (u *User) ShowChat(friendID primitive.ObjectID) (content string, timestamp time.Time) {
+// GetChat fetches the chat b/w the current user and the given userID. It returns the actual
+// content as a formatted string, and the timestamp of the last message.
+func (u *User) GetChat(friendID primitive.ObjectID) (content string, timestamp time.Time) {
 	friend, _ := GetUserByID(friendID)
-	content = fmt.Sprintf("\n\n******************* Chat: %s %s *****************\n\n",
+	content = fmt.Sprintf("\n\n******************* chat: %s %s *****************\n\n",
 		friend.FirstName, friend.LastName) // TODO: Use buffers instead
-	chat, err := GetChatByUserIDs(u.ID, friendID, datastore.MongoConn().Collection(ChatCollection))
+	chat, err := getChatByUserIDs(u.ID, friendID, datastore.MongoConn().Collection(chatCollection))
 	if err != nil {
 		log.Logger().Print(err)
 		return
@@ -617,21 +622,18 @@ func (u *User) ShowChat(friendID primitive.ObjectID) (content string, timestamp 
 		} else {
 			sender = friend.FirstName
 		}
-		content += fmt.Sprintf(PrintMessage(msg, sender) + "\n")
+		content += fmt.Sprintf(printMessage(msg, sender) + "\n")
 		timestamp = msg.Timestamp
 	}
 	return
 }
 
-func ValidUserEmail(email string) bool {
-	return regexp.MustCompile(ValidEmailRegex).MatchString(email)
-}
-
-func (u *User) getInvitations(invType InviteType) (invites []primitive.ObjectID, err error) {
-	invitesData := UserInvites{}
-	err = datastore.MongoConn().Collection(UserInvitesCollection).FindOne(
+// getInvitations fetches the invitation of a given type for the user
+func (u *User) getInvitations(invType inviteType) (invites []primitive.ObjectID, err error) {
+	invitesData := userInvites{}
+	err = datastore.MongoConn().Collection(userInvitesCollection).FindOne(
 		context.Background(),
-		bson.M{UserIdField: u.ID}).
+		bson.M{userIdField: u.ID}).
 		Decode(&invitesData)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -642,18 +644,45 @@ func (u *User) getInvitations(invType InviteType) (invites []primitive.ObjectID,
 		return
 	}
 	switch invType {
-	case Sent:
+	case sent:
 		invites = invitesData.Sent
-	case Received:
+	case received:
 		invites = invitesData.Received
-	case Accepted:
+	case accepted:
 		invites = invitesData.Accepted
-	case Rejected:
+	case rejected:
 		invites = invitesData.Rejected
-	case Cancelled:
+	case cancelled:
 		invites = invitesData.Cancelled
 	default:
-		err = InvalidInviteType
+		err = invalidInviteType
 	}
 	return
+}
+
+// existingUser checks that a given user already exists in the system based on the email
+func (u *User) existingUser() (exists bool) {
+	_, err := GetUserByEmail(u.Email) // if u not exists, it will throw an error
+	if err == mongo.ErrNoDocuments {
+		return
+	}
+	if err != nil { // some other error occurred
+		log.Logger().Printf("u email unique check failed: %s", err)
+		return
+	}
+	exists = true
+	return
+}
+
+func ValidUserEmail(email string) bool {
+	return regexp.MustCompile(validEmailRegex).MatchString(email)
+}
+
+// UserProfile fetches the basic details about a given user based on the ID (objectID)
+func UserProfile(userID primitive.ObjectID) (string, error) {
+	user, err := GetUserByID(userID)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s %s : %s", user.FirstName, user.LastName, user.Email), nil
 }

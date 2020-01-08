@@ -1,4 +1,7 @@
 #!make
+
+# run from the repo root
+
 BIN_PATH=build/gibber-server
 BUILD_PATH=cmd/server/main.go
 MK_BUILD_PATH=test -d build || mkdir -p build
@@ -11,14 +14,17 @@ GIT_HOOKS=git config --local core.hooksPath .githooks/
 include gibber.env
 export $(shell sed 's/=.*//' gibber.env)
 
-default: build test test_cover
+default: fmt build test test_cover
 
 all: bootstrap default
+
+fmt:
+	gofmt -l -s -w service user cmd datastore
 
 bootstrap: githooks
 
 build: 
-	$(MK_BUILD_PATH)
+	$(mk_build_path)
 	$(GO_BUILD)
 
 test: clean

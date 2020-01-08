@@ -62,13 +62,13 @@ func TestConnection_SendMessage(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		conn.SendMessage(tc.msg, tc.newline)
+		conn.sendMessage(tc.msg, tc.newline)
 		assert.NoError(t, conn.Err)
 	}
 }
 
 func TestConnection_ReadMessage(t *testing.T) {
-	content := conn.ReadMessage()
+	content := conn.readMessage()
 	assert.NoError(t, conn.Err)
 	assert.NotEmpty(t, content, "non-empty message received")
 }

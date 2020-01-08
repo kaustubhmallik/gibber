@@ -18,6 +18,7 @@ const (
 	MongoPullOperator = "$pull"
 )
 
+// various collections to be used by the service, which need to be initialized
 const (
 	UserCollection        = "users"
 	UserInvitesCollection = "user_invites"
@@ -28,19 +29,19 @@ const (
 // common fields/attributes of documents in various collections
 const (
 	ObjectID = "_id" // document level Primary Key
-	// Creation time of the document can be fetched via ObjectId.getTimestamp()
-	// see https://docs.mongodb.com/manual/reference/method/ObjectId.getTimestamp/#ObjectId.getTimestamp
 )
 
+// ENV params to get details about mongo instance to connect, along with other connection args
 var (
-	MongoConnScheme = os.Getenv("GIBBER_MONGO_CONN_SCHEME")
-	MongoHost       = os.Getenv("GIBBER_MONGO_HOST")
-	MongoUser       = os.Getenv("GIBBER_MONGO_USER")
-	MongoPwd        = os.Getenv("GIBBER_MONGO_PWD")
-	MongoDatabase   = os.Getenv("GIBBER_MONGO_DB")
-	MongoOptions    = os.Getenv("GIBBER_MONGO_OPTS") // retryWrites=true&w=majority
+	mongoConnScheme = os.Getenv("GIBBER_MONGO_CONN_SCHEME")
+	mongoHost       = os.Getenv("GIBBER_MONGO_HOST")
+	mongoUser       = os.Getenv("GIBBER_MONGO_USER")
+	mongoPwd        = os.Getenv("GIBBER_MONGO_PWD")
+	mongoDatabase   = os.Getenv("GIBBER_MONGO_DB")
+	mongoOptions    = os.Getenv("GIBBER_MONGO_OPTS")
 )
 
+// generic mongo errors
 var (
 	NoDocUpdate = errors.New("no document updated")
 )
@@ -53,17 +54,16 @@ func init() {
 	initCollections()
 }
 
-// mongodb+srv://<username>:<password>@gibber-qiquc.gcp.mongodb.net/test?retryWrites=true&w=majority
-// initializes a new client, and set the target database handler
+// initMongoConnPool initializes a new client, and set the target database handler
 func initMongoConnPool() {
-	addressURL := MongoConnScheme + "://"
-	if MongoUser != "" {
-		addressURL += MongoUser + ":" + MongoPwd + "@"
+	addressURL := mongoConnScheme + "://"
+	if mongoUser != "" {
+		addressURL += mongoUser + ":" + mongoPwd + "@"
 	}
-	addressURL += MongoHost
-	addressURL += "/" + MongoDatabase
-	if MongoOptions != "" {
-		addressURL += "?" + MongoOptions
+	addressURL += mongoHost
+	addressURL += "/" + mongoDatabase
+	if mongoOptions != "" {
+		addressURL += "?" + mongoOptions
 	}
 	opts := options.Client().ApplyURI(addressURL)
 	client, err := mongo.Connect(context.Background(), opts)
@@ -75,12 +75,13 @@ func initMongoConnPool() {
 	mongoConn = client.Database("gibber")
 }
 
-// returns database handler instance of mongo for target database
+// MongoConn returns database handler instance of mongo for target database
 func MongoConn() *mongo.Database {
 	initMongoConn.Do(initMongoConnPool)
 	return mongoConn
 }
 
+// initCollections create the document collections (if non-existent) to be utilized by the service.
 func initCollections() {
 	mongoConn := MongoConn()
 	collections := []string{

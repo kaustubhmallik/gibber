@@ -33,7 +33,7 @@ func TestCreateUserInvitesData(t *testing.T) {
 			name:     "success scenario",
 			userId:   primitive.NewObjectID(),
 			expIdLen: len(primitive.NewObjectID().Hex()),
-			dbConn:   datastore.MongoConn().Collection(UserInvitesCollection),
+			dbConn:   datastore.MongoConn().Collection(userInvitesCollection),
 			err:      nil,
 		},
 		{
@@ -45,7 +45,7 @@ func TestCreateUserInvitesData(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		userInvId, err := CreateUserInvitesData(tc.userId, context.Background(), tc.dbConn)
+		userInvId, err := createUserInvitesData(tc.userId, context.Background(), tc.dbConn)
 		assert.Equal(t, tc.err, err, "%s failed as user invite creation failed", tc.name)
 		if err == nil {
 			_, err = primitive.ObjectIDFromHex(userInvId.(primitive.ObjectID).Hex())
@@ -56,7 +56,7 @@ func TestCreateUserInvitesData(t *testing.T) {
 }
 
 func TestUserInvites_String(t *testing.T) {
-	ui := new(UserInvites)
+	ui := new(userInvites)
 	assert.Equal(t, primitive.ObjectID{}.String(), ui.String(), "uninitialized object ID should be empty string")
 	ui.ID = primitive.NewObjectID()
 	assert.True(t, ui.String() != primitive.ObjectID{}.String(), "initialized object ID should be non-empty string")
@@ -105,7 +105,7 @@ func TestGetMap(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		_, err := GetMap(tc.input)
+		_, err := getMap(tc.input)
 		assert.Equal(t, tc.errOccur, err != nil, "%s failed", tc.name)
 	}
 }
