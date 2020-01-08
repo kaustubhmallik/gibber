@@ -335,7 +335,7 @@ func (c *Client) ShowLandingPage() string {
 const ChatPrompt = "Type message (press \"enter\" to send, \"q\" to quit): "
 
 func (c *Client) StarChat(friendID primitive.ObjectID) {
-	content, timestamp := c.User.ShowChat(friendID)
+	content, timestamp := c.User.GetChat(friendID)
 	c.SendMessage(content, true)
 	var input string
 	done := make(chan bool)

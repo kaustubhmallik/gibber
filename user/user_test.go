@@ -103,7 +103,7 @@ func TestUser_ExistingUser(t *testing.T) {
 	assert.NoError(t, err, "user creation failed")
 	assert.NotEqual(t, primitive.ObjectID{}.Hex(), userID.(primitive.ObjectID).Hex(), "default object ID")
 
-	exists := user.ExistingUser()
+	exists := user.existingUser()
 	assert.NoError(t, err, "existing user check failed")
 	assert.True(t, exists, "user should exist as just created")
 }
@@ -386,11 +386,11 @@ func TestUser_GetInvitation(t *testing.T) {
 	assert.NoError(t, err, "user creation failed")
 
 	invites, err := user1.getInvitations("Invalid Type")
-	assert.Equal(t, InvalidInviteType, err)
+	assert.Equal(t, invalidInviteType, err)
 	assert.Equal(t, 0, len(invites))
 
 	user1.ID = primitive.NewObjectID()
-	invites, err = user1.getInvitations(Accepted)
+	invites, err = user1.getInvitations(accepted)
 	assert.Equal(t, mongo.ErrNoDocuments, err)
 	assert.Equal(t, 0, len(invites))
 }
@@ -489,11 +489,11 @@ func TestUser_ShowChat(t *testing.T) {
 		datastore.MongoConn().Collection(datastore.ChatCollection))
 	assert.NoError(t, err, "new document should be created for the chat")
 
-	content, timestamp := user1.ShowChat(user2ID.(primitive.ObjectID))
+	content, timestamp := user1.GetChat(user2ID.(primitive.ObjectID))
 	assert.NotEqual(t, "", content, "non-empty content should arrive")
 	assert.NotEqual(t, time.Time{}, timestamp, "non-empty (non-ZERO value) should be returned")
 
-	content, timestamp = user1.ShowChat(primitive.NewObjectID())
+	content, timestamp = user1.GetChat(primitive.NewObjectID())
 	assert.Equal(t, time.Time{}, timestamp, "non-empty (non-ZERO value) should be returned")
 	assert.True(t, len(content) > 0, "should be non-empty as friends are added")
 }

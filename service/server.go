@@ -20,7 +20,8 @@ const (
 	repo         = "gibber/"
 )
 
-
+// StartServer starts the chat server and opens it given patterns of hosts and the given port
+// The context is taken to signal that the server is initialized successfully
 func StartServer(host, port string, complete context.CancelFunc) error {
 	defer complete() // mark the context as completed/cancelled
 	address := fmt.Sprintf("%s:%s", host, port)
