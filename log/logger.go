@@ -48,16 +48,6 @@ func initLogger() (err error) {
 	return
 }
 
-// WriteLog append a given formatted string on the log
-func WriteLog(log string, params ...interface{}) {
-	logInit.Do(func() {
-		if err := initLogger(); err != nil {
-			panic(fmt.Sprintf("error while initializing internal logger: %s", err))
-		}
-	})
-	logger.Print(log, params)
-}
-
 // Logger gives the logger instance to enable logging events
 func Logger() *log.Logger {
 	logInit.Do(func() {
@@ -66,13 +56,6 @@ func Logger() *log.Logger {
 		}
 	})
 	return logger
-}
-
-// WriteLogAndReturnError append a given formatted string on the log and
-// returns an error generated from the string
-func WriteLogAndReturnError(log string, params ...interface{}) error {
-	WriteLog(log, params)
-	return fmt.Errorf(log, params...)
 }
 
 func projectRootPath() (path string) {

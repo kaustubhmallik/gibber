@@ -28,7 +28,7 @@ func StartServer(host, port string, complete context.CancelFunc) error {
 	address := fmt.Sprintf("%s:%s", host, port)
 	listener, err := net.Listen(connType, address)
 	if err != nil {
-		return log.WriteLogAndReturnError("error in starting listener on host %s and port %s: %s", host, port, err)
+		return fmt.Errorf("error in starting listener on host %s and port %s: %s", host, port, err)
 	}
 	log.Logger().Printf("started TCP listener on %s", address)
 	_ = printLogo()
