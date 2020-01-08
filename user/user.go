@@ -40,8 +40,8 @@ const (
 
 // user invite errors
 var (
-	fetchUserFailed   = errors.New("fetch user details failed")
-	invalidInviteType = errors.New("invalid invite type")
+	errFetchUser         = errors.New("fetch user details failed")
+	errInvalidInviteType = errors.New("invalid invite type")
 )
 
 // an enum to restrict invitation types
@@ -97,15 +97,15 @@ func CreateUser(user *User) (userId interface{}, err error) {
 			er = fmt.Errorf("error while creating new user %#v: %s", userMap, er)
 			log.Logger().Print(er)
 			return
-		} else {
-			userId = res.InsertedID
-			user.ID = res.InsertedID.(primitive.ObjectID)
-			log.Logger().Printf("user %#v successfully created with userId: %v", userMap, res)
 		}
+
+		userId = res.InsertedID
+		user.ID = res.InsertedID.(primitive.ObjectID)
+		log.Logger().Printf("user %#v successfully created with userId: %v", userMap, res)
 
 		// create user_invite
 		var invitesId primitive.ObjectID
-		invitesDataId, er := createUserInvitesData(userId, sc, datastore.MongoConn().Collection(userInvitesCollection))
+		invitesDataId, er := createUserInvitesData(sc, userId, datastore.MongoConn().Collection(userInvitesCollection))
 		invitesId = invitesDataId.(primitive.ObjectID)
 		if er != nil {
 			_ = session.AbortTransaction(sc)
@@ -123,7 +123,7 @@ func CreateUser(user *User) (userId interface{}, err error) {
 		if er != nil || updateRes.ModifiedCount != 1 {
 			_ = session.AbortTransaction(sc)
 			log.Logger().Printf("error while setting up invites data for user%s: %s", userId, err)
-			err = datastore.NoDocUpdate
+			err = datastore.ErrNoDocUpdate
 			return er
 		}
 
@@ -152,12 +152,12 @@ func GetUserByEmail(email string) (user *User, err error) {
 		// no changes in error so that it can be used to verify unique email ID before insertion
 	} else if err != nil {
 		log.Logger().Printf("decoding(unmarshal) user fetch result for email %s failed: %s", email, err)
-		err = fetchUserFailed
+		err = errFetchUser
 	}
 	return
 }
 
-// GetUserByEmail gets the details of a user by ID (object ID)
+// GetUserByID gets the details of a user by ID (object ID)
 func GetUserByID(objectID primitive.ObjectID) (user *User, err error) {
 	user = &User{}
 	err = datastore.MongoConn().
@@ -174,7 +174,7 @@ func GetUserByID(objectID primitive.ObjectID) (user *User, err error) {
 	return
 }
 
-// loginUser logs in a given user with the given password. In case of successful login, it returns
+// LoginUser logs in a given user with the given password. In case of successful login, it returns
 // the last login time of the user. In case of password mismatch or any other issue, an error will be raised.
 func (u *User) LoginUser(password string) (lastLoginTime string, err error) {
 	fetchDBUser, err := GetUserByEmail(u.Email)
@@ -217,7 +217,7 @@ func (u *User) LoginUser(password string) (lastLoginTime string, err error) {
 		return
 	} else if result.MatchedCount != 1 {
 		log.Logger().Printf("error while logging out %s as no doc updated for", u.Email)
-		err = datastore.NoDocUpdate
+		err = datastore.ErrNoDocUpdate
 		return
 	}
 
@@ -312,7 +312,7 @@ func (u *User) UpdateName(firstName, lastName string) (err error) {
 	return
 }
 
-// seeOnlineFriends fetches the details of the users which are currently online
+// SeeOnlineFriends fetches the details of the users which are currently online
 func (u *User) SeeOnlineFriends() (onlineFriends []string, err error) {
 	//fetchedUser := &User{}
 	//MongoConn().Collection(userCollection).FindOne(
@@ -365,13 +365,13 @@ func (u *User) Logout() (err error) {
 		return
 	} else if result.ModifiedCount != 1 {
 		log.Logger().Printf("error while logging out u %s", u.Email)
-		err = datastore.NoDocUpdate
+		err = datastore.ErrNoDocUpdate
 		return
 	}
 	return
 }
 
-// sendInvitation sends an invite to a given user
+// SendInvitation sends an invite to a given user
 func (u *User) SendInvitation(recv *User) (err error) {
 	session, err := datastore.MongoConn().Client().StartSession()
 	if err != nil {
@@ -473,7 +473,7 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 			return
 		} else if res.ModifiedCount != 1 {
 			log.Logger().Printf("invite data not updated for invite accepting u %s", u.ID.String())
-			er = datastore.NoDocUpdate
+			er = datastore.ErrNoDocUpdate
 			return
 		}
 
@@ -493,16 +493,16 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 			return
 		} else if res.ModifiedCount != 1 {
 			log.Logger().Printf("invite data not updated for invite sending u %s", userID.String())
-			err = datastore.NoDocUpdate
+			err = datastore.ErrNoDocUpdate
 			return
 		}
 
 		// using upsert: true to create the friends document if non-existent
-		res, er = datastore.MongoConn().Collection(FriendsCollection).UpdateOne(
+		res, er = datastore.MongoConn().Collection(friendsCollection).UpdateOne(
 			sc,
 			bson.M{userIdField: u.ID},
 			bson.D{
-				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: FriendsField, Value: userID}}},
+				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: friendsField, Value: userID}}},
 			},
 			options.Update().SetUpsert(true))
 		if er != nil {
@@ -511,16 +511,16 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 			return
 		} else if res.ModifiedCount+res.UpsertedCount != 1 {
 			log.Logger().Printf("document not created/updated to add %s as friend for %s", userID.String(), u.ID.String())
-			err = datastore.NoDocUpdate
+			err = datastore.ErrNoDocUpdate
 			return
 		}
 
 		// using upsert: true to create the friends document if non-existent
-		res, err = datastore.MongoConn().Collection(FriendsCollection).UpdateOne(
+		res, err = datastore.MongoConn().Collection(friendsCollection).UpdateOne(
 			sc,
 			bson.M{userIdField: userID},
 			bson.D{
-				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: FriendsField, Value: u.ID}}},
+				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: friendsField, Value: u.ID}}},
 			},
 			options.Update().SetUpsert(true))
 		if err != nil {
@@ -530,7 +530,7 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 		} else if res.ModifiedCount+res.UpsertedCount != 1 {
 			log.Logger().Printf("document not created/updated to add %s as friend for %s", u.ID.String(),
 				userID.String())
-			err = datastore.NoDocUpdate
+			err = datastore.ErrNoDocUpdate
 			return
 		}
 
@@ -580,22 +580,22 @@ func (u *User) CancelInvitation(user *User) error {
 	return nil
 }
 
-// seeFriends fetches the list of userIDs which are friends with current user
-func (u *User) SeeFriends() (friends []primitive.ObjectID, err error) {
-	friendData := Friends{}
-	err = datastore.MongoConn().Collection(FriendsCollection).FindOne(
+// SeeFriends fetches the list of userIDs which are friends with current user
+func (u *User) SeeFriends() (frdns []primitive.ObjectID, err error) {
+	friendData := friends{}
+	err = datastore.MongoConn().Collection(friendsCollection).FindOne(
 		context.Background(),
 		bson.M{userIdField: u.ID}).
 		Decode(&friendData)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			log.Logger().Printf("friends data not found for u %s", u.ID.String())
+			log.Logger().Printf("frdns data not found for u %s", u.ID.String())
 		} else {
-			log.Logger().Printf("friends data fetch failed for u %s: %s", u.ID.String(), err)
+			log.Logger().Printf("frdns data fetch failed for u %s: %s", u.ID.String(), err)
 		}
 		return
 	}
-	friends = friendData.FriendIDs
+	frdns = friendData.FriendIDs
 	return
 }
 
@@ -655,7 +655,7 @@ func (u *User) getInvitations(invType inviteType) (invites []primitive.ObjectID,
 	case cancelled:
 		invites = invitesData.Cancelled
 	default:
-		err = invalidInviteType
+		err = errInvalidInviteType
 	}
 	return
 }
@@ -674,6 +674,7 @@ func (u *User) existingUser() (exists bool) {
 	return
 }
 
+// ValidUserEmail validates an email using regex
 func ValidUserEmail(email string) bool {
 	return regexp.MustCompile(validEmailRegex).MatchString(email)
 }

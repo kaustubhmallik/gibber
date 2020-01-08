@@ -41,9 +41,9 @@ var (
 	mongoOptions    = os.Getenv("GIBBER_MONGO_OPTS")
 )
 
-// generic mongo errors
+// ErrNoDocUpdate is an error raised when update operation results in no document being updated
 var (
-	NoDocUpdate = errors.New("no document updated")
+	ErrNoDocUpdate = errors.New("no document updated")
 )
 
 // instead of a generic client, return the target DB handler, to avoid selecting it again and again in each query

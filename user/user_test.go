@@ -386,7 +386,7 @@ func TestUser_GetInvitation(t *testing.T) {
 	assert.NoError(t, err, "user creation failed")
 
 	invites, err := user1.getInvitations("Invalid Type")
-	assert.Equal(t, invalidInviteType, err)
+	assert.Equal(t, errInvalidInviteType, err)
 	assert.Equal(t, 0, len(invites))
 
 	user1.ID = primitive.NewObjectID()

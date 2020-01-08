@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// connection details
+// Connection details of the TCP connection b/w client and service
 type Connection struct {
 	Conn   *net.Conn
 	Reader *bufio.Reader

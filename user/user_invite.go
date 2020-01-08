@@ -26,7 +26,7 @@ type userInvites struct {
 }
 
 // createUserInvitesData creates the empty invites collection for the given user
-func createUserInvitesData(userId interface{}, ctx context.Context, dbConn datastore.DatabaseInserter) (userInvitesDataId interface{}, err error) {
+func createUserInvitesData(ctx context.Context, userId interface{}, dbConn datastore.DatabaseInserter) (userInvitesDataId interface{}, err error) {
 	userInvites := &userInvites{
 		UserID:    userId.(primitive.ObjectID),
 		Sent:      make([]primitive.ObjectID, 0),

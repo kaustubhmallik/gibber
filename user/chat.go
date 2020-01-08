@@ -52,7 +52,7 @@ func FetchIncomingMessages(timestamp time.Time, self, other primitive.ObjectID) 
 	return
 }
 
-// sendMessage sends a given message from sender to receiver
+// SendMessage sends a given message from sender to receiver
 func SendMessage(sender, receiver primitive.ObjectID, text string, updater datastore.DatabaseUpdater) (err error) {
 	msg := message{
 		Sender:    sender,
@@ -75,7 +75,7 @@ func SendMessage(sender, receiver primitive.ObjectID, text string, updater datas
 		log.Logger().Printf("error while sending msg from %s to %s: %s", sender, receiver, err)
 	} else if res.ModifiedCount+res.UpsertedCount != 1 {
 		log.Logger().Printf("document not created/updated while sending msg from %s to %s", sender, receiver)
-		err = datastore.NoDocUpdate
+		err = datastore.ErrNoDocUpdate
 	}
 	return
 }

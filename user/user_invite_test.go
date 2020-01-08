@@ -11,14 +11,14 @@ import (
 	"testing"
 )
 
-var InsertFailed = errors.New("insert failure")
+var errInsertFailed = errors.New("insert failure")
 
 type databaseInsertFail struct {
 	// implementing DatabaseInserter interface for failure inserts
 }
 
 func (d *databaseInsertFail) InsertOne(ctx context.Context, document interface{}, opts ...*options.InsertOneOptions) (*mongo.InsertOneResult, error) {
-	return nil, InsertFailed
+	return nil, errInsertFailed
 }
 
 func TestCreateUserInvitesData(t *testing.T) {
@@ -41,11 +41,11 @@ func TestCreateUserInvitesData(t *testing.T) {
 			userId:   primitive.NewObjectID(),
 			expIdLen: 0,
 			dbConn:   new(databaseInsertFail),
-			err:      InsertFailed,
+			err:      errInsertFailed,
 		},
 	}
 	for _, tc := range tests {
-		userInvId, err := createUserInvitesData(tc.userId, context.Background(), tc.dbConn)
+		userInvId, err := createUserInvitesData(context.Background(), tc.userId, tc.dbConn)
 		assert.Equal(t, tc.err, err, "%s failed as user invite creation failed", tc.name)
 		if err == nil {
 			_, err = primitive.ObjectIDFromHex(userInvId.(primitive.ObjectID).Hex())
