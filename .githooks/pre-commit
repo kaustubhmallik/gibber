@@ -2,6 +2,7 @@
 
 echo "Git pre-commit hook starting...\n"
 
+gofmt -l -w -s service cmd datastore user
 golangci-lint run
 
 # abort commit if go lint found issues
