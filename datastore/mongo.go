@@ -31,16 +31,6 @@ const (
 	ObjectID = "_id" // document level Primary Key
 )
 
-// ENV params to get details about mongo instance to connect, along with other connection args
-var (
-	mongoConnScheme = os.Getenv("GIBBER_MONGO_CONN_SCHEME")
-	mongoHost       = os.Getenv("GIBBER_MONGO_HOST")
-	mongoUser       = os.Getenv("GIBBER_MONGO_USER")
-	mongoPwd        = os.Getenv("GIBBER_MONGO_PWD")
-	mongoDatabase   = os.Getenv("GIBBER_MONGO_DB")
-	mongoOptions    = os.Getenv("GIBBER_MONGO_OPTS")
-)
-
 // ErrNoDocUpdate is an error raised when update operation results in no document being updated
 var (
 	ErrNoDocUpdate = errors.New("no document updated")
@@ -56,7 +46,17 @@ func init() {
 
 // initMongoConnPool initializes a new client, and set the target database handler
 func initMongoConnPool() {
-	addressURL := mongoConnScheme + "://"
+
+	// ENV params to get details about mongo instance to connect, along with other connection args
+	var (
+		mongoHost     = os.Getenv("GIBBER_MONGO_HOST")
+		mongoUser     = os.Getenv("GIBBER_MONGO_USER")
+		mongoPwd      = os.Getenv("GIBBER_MONGO_PWD")
+		mongoDatabase = os.Getenv("GIBBER_MONGO_DB")
+		mongoOptions  = os.Getenv("GIBBER_MONGO_OPTS")
+	)
+
+	addressURL := "mongodb+srv://"
 	if mongoUser != "" {
 		addressURL += mongoUser + ":" + mongoPwd + "@"
 	}

@@ -94,7 +94,7 @@ func getChatByUserIDs(userID1, userID2 primitive.ObjectID, finder datastore.Data
 		}).
 		Decode(ch)
 	if err != nil {
-		log.Logger().Printf("no ch found with user IDs %s and %s", userID1, userID2) // other errors are not expected
+		log.Logger().Printf("no chat found with user IDs %s and %s", userID1, userID2) // other errors are not expected
 	}
 	return
 }
