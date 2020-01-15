@@ -6,7 +6,7 @@ BIN_PATH=build/gibber-server
 BUILD_PATH=cmd/server/main.go
 MK_BUILD_PATH=test -d build || mkdir -p build
 GO_CMD=go
-GO_BUILD=$(GO_CMD) build -o $(BIN_PATH) $(BUILD_PATH)
+GO_BUILD=$(GO_CMD) build -ldflags '-s -w' -o $(BIN_PATH) $(BUILD_PATH)
 GO_TEST=$(GO_CMD) test ./... -count=1
 GO_TEST_COVER=$(GO_TEST) -coverprofile=coverage.txt
 GIT_HOOKS=git config --local core.hooksPath .githooks/
