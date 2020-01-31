@@ -2,9 +2,8 @@
 
 # run from the repo root
 
-BIN_PATH=build/gibber-server
+BIN_PATH=gibber-server
 BUILD_PATH=cmd/server/main.go
-MK_BUILD_PATH=test -d build || mkdir -p build
 GO_CMD=go
 GO_BUILD=CGO_ENABLED=0 $(GO_CMD) build -ldflags '-s -w' -o $(BIN_PATH) $(BUILD_PATH)
 GO_TEST=$(GO_CMD) test ./... -count=1
@@ -24,7 +23,6 @@ fmt:
 bootstrap: githooks
 
 build: 
-	$(mk_build_path)
 	$(GO_BUILD)
 
 test: clean
