@@ -9,6 +9,7 @@ build/
 
 gibber
 main
+gibber-server
 
 # Test binary, build with `go test -c`
 *.test
