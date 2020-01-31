@@ -17,6 +17,6 @@ func TestMainFunc(t *testing.T) {
 	assert.NotNil(t, conn, "connection is not established")
 	assert.Equal(t, "tcp", conn.RemoteAddr().Network(), "connection scheme is incorrect: %s",
 		conn.RemoteAddr().Network())
-	assert.Equal(t, "127.0.0.1:7000", conn.RemoteAddr().String(), "connection scheme is incorrect: %s",
+	assert.Equal(t, "[::1]:7000", conn.RemoteAddr().String(), "connection scheme is incorrect: %s",
 		conn.RemoteAddr().Network())
 }

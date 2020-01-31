@@ -9,7 +9,7 @@ import (
 
 // details of the endpoint exposed
 const (
-	host = "127.0.0.1"
+	host = "0.0.0.0"
 	port = "7000"
 )
 
