@@ -49,6 +49,7 @@ func initMongoConnPool() {
 
 	// ENV params to get details about mongo instance to connect, along with other connection args
 	var (
+		mongoScheme   = os.Getenv("GIBBER_MONGO_SCHEME")
 		mongoHost     = os.Getenv("GIBBER_MONGO_HOST")
 		mongoUser     = os.Getenv("GIBBER_MONGO_USER")
 		mongoPwd      = os.Getenv("GIBBER_MONGO_PWD")
@@ -56,7 +57,7 @@ func initMongoConnPool() {
 		mongoOptions  = os.Getenv("GIBBER_MONGO_OPTS")
 	)
 
-	addressURL := "mongodb+srv://"
+	addressURL := mongoScheme + "://"
 	if mongoUser != "" {
 		addressURL += mongoUser + ":" + mongoPwd + "@"
 	}
