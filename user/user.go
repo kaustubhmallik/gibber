@@ -77,68 +77,68 @@ func CreateUser(user *User) (userId interface{}, err error) {
 	userMap, _ := getMap(user)
 	userMap["last_login"] = time.Now().UTC()
 
-	session, err := datastore.MongoConn().Client().StartSession()
-	if err != nil {
-		log.Logger().Printf("initializing mongo session failed: %s", err)
+	//session, err := datastore.MongoConn().Client().StartSession()
+	//if err != nil {
+	//	log.Logger().Printf("initializing mongo session failed: %s", err)
+	//	return
+	//}
+	//
+	//err = session.StartTransaction()
+	//if err != nil {
+	//	log.Logger().Printf("initializing mongo transaction failed: %s", err)
+	//	return
+	//}
+
+	//err = mongo.WithSession(context.Background(), session, func(sc mongo.SessionContext) (er error) {
+	// create user
+	res, er := datastore.MongoConn().Collection(userCollection).InsertOne(context.Background(), userMap)
+	if er != nil {
+		//_ = session.AbortTransaction(sc)
+		er = fmt.Errorf("error while creating new user %#v: %s", userMap, er)
+		log.Logger().Print(er)
 		return
 	}
 
-	err = session.StartTransaction()
-	if err != nil {
-		log.Logger().Printf("initializing mongo transaction failed: %s", err)
+	userId = res.InsertedID
+	user.ID = res.InsertedID.(primitive.ObjectID)
+	log.Logger().Printf("user %#v successfully created with userId: %v", userMap, res)
+
+	// create user_invite
+	var invitesId primitive.ObjectID
+	invitesDataId, er := createUserInvitesData(context.Background(), userId, datastore.MongoConn().Collection(userInvitesCollection))
+	invitesId = invitesDataId.(primitive.ObjectID)
+	if er != nil {
+		//_ = session.AbortTransaction(sc)
+		log.Logger().Printf("error creating user invite: %s", er)
 		return
 	}
 
-	err = mongo.WithSession(context.Background(), session, func(sc mongo.SessionContext) (er error) {
-		// create user
-		res, er := datastore.MongoConn().Collection(userCollection).InsertOne(sc, userMap)
-		if er != nil {
-			_ = session.AbortTransaction(sc)
-			er = fmt.Errorf("error while creating new user %#v: %s", userMap, er)
-			log.Logger().Print(er)
-			return
-		}
+	// update invite_user doc ID in user's doc
+	updateRes, er := datastore.MongoConn().Collection(userCollection).UpdateOne(
+		context.Background(),
+		bson.M{datastore.ObjectID: userId},
+		bson.D{{
+			Key: datastore.MongoSetOperator, Value: bson.D{{Key: invitesDataField, Value: invitesId}},
+		}})
+	if er != nil || updateRes.ModifiedCount != 1 {
+		//_ = session.AbortTransaction(sc)
+		log.Logger().Printf("error while setting up invites data for user%s: %s", userId, err)
+		err = datastore.ErrNoDocUpdate
+		return
+	}
 
-		userId = res.InsertedID
-		user.ID = res.InsertedID.(primitive.ObjectID)
-		log.Logger().Printf("user %#v successfully created with userId: %v", userMap, res)
+	// commit transaction
+	//if er := session.CommitTransaction(sc); er != nil {
+	//	log.Logger().Printf("committing mongo transaction failed: %s", er)
+	//	er = session.AbortTransaction(sc)
+	//	if er != nil {
+	//		log.Logger().Printf("aborting mongo transaction failed: %s", er)
+	//	}
+	//}
+	//return nil
+	//})
 
-		// create user_invite
-		var invitesId primitive.ObjectID
-		invitesDataId, er := createUserInvitesData(sc, userId, datastore.MongoConn().Collection(userInvitesCollection))
-		invitesId = invitesDataId.(primitive.ObjectID)
-		if er != nil {
-			_ = session.AbortTransaction(sc)
-			log.Logger().Printf("error creating user invite: %s", er)
-			return er
-		}
-
-		// update invite_user doc ID in user's doc
-		updateRes, er := datastore.MongoConn().Collection(userCollection).UpdateOne(
-			sc,
-			bson.M{datastore.ObjectID: userId},
-			bson.D{{
-				Key: datastore.MongoSetOperator, Value: bson.D{{Key: invitesDataField, Value: invitesId}},
-			}})
-		if er != nil || updateRes.ModifiedCount != 1 {
-			_ = session.AbortTransaction(sc)
-			log.Logger().Printf("error while setting up invites data for user%s: %s", userId, err)
-			err = datastore.ErrNoDocUpdate
-			return er
-		}
-
-		// commit transaction
-		if er := session.CommitTransaction(sc); er != nil {
-			log.Logger().Printf("committing mongo transaction failed: %s", er)
-			er = session.AbortTransaction(sc)
-			if er != nil {
-				log.Logger().Printf("aborting mongo transaction failed: %s", er)
-			}
-		}
-		return nil
-	})
-
-	session.EndSession(context.Background())
+	//session.EndSession(context.Background())
 	return
 }
 
@@ -373,66 +373,66 @@ func (u *User) Logout() (err error) {
 
 // SendInvitation sends an invite to a given user
 func (u *User) SendInvitation(recv *User) (err error) {
-	session, err := datastore.MongoConn().Client().StartSession()
-	if err != nil {
-		log.Logger().Printf("initializing mongo session failed: %s", err)
-		return
+	//session, err := datastore.MongoConn().Client().StartSession()
+	//if err != nil {
+	//	log.Logger().Printf("initializing mongo session failed: %s", err)
+	//	return
+	//}
+
+	//err = session.StartTransaction()
+	//if err != nil {
+	//	log.Logger().Printf("initializing mongo transaction failed: %s", err)
+	//	return
+	//}
+
+	//err = mongo.WithSession(context.Background(), session, func(sc mongo.SessionContext) (er error) {
+	result, er := datastore.MongoConn().Collection(userInvitesCollection).UpdateOne(
+		context.Background(),
+		bson.D{
+			{Key: userIdField, Value: u.ID},
+		},
+		bson.D{
+			{Key: datastore.MongoPushOperator, Value: bson.D{{Key: string(sent), Value: recv.ID}}},
+		},
+	)
+	if er != nil {
+		//_ = session.AbortTransaction(sc)
+		er = fmt.Errorf("sending invitation failed from %s to %s: %s", u.Email, recv.Email, err)
+		log.Logger().Println(er)
+	} else if result.ModifiedCount != 1 {
+		//_ = session.AbortTransaction(sc)
+		log.Logger().Printf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
 	}
 
-	err = session.StartTransaction()
-	if err != nil {
-		log.Logger().Printf("initializing mongo transaction failed: %s", err)
-		return
+	result, er = datastore.MongoConn().Collection(userInvitesCollection).UpdateOne(
+		context.Background(),
+		bson.D{
+			{Key: userIdField, Value: recv.ID},
+		},
+		bson.D{
+			{Key: datastore.MongoPushOperator, Value: bson.D{{Key: string(received), Value: u.ID}}},
+		},
+	)
+	if er != nil {
+		//_ = session.AbortTransaction(sc)
+		er = fmt.Errorf("sending invitation failed from %s to %s: %s", u.Email, recv.Email, err)
+		log.Logger().Print(er)
+	} else if result.ModifiedCount != 1 {
+		//_ = session.AbortTransaction(sc)
+		reason := fmt.Sprintf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
+		log.Logger().Println(reason)
 	}
 
-	err = mongo.WithSession(context.Background(), session, func(sc mongo.SessionContext) (er error) {
-		result, er := datastore.MongoConn().Collection(userInvitesCollection).UpdateOne(
-			sc,
-			bson.D{
-				{Key: userIdField, Value: u.ID},
-			},
-			bson.D{
-				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: string(sent), Value: recv.ID}}},
-			},
-		)
-		if er != nil {
-			_ = session.AbortTransaction(sc)
-			er = fmt.Errorf("sending invitation failed from %s to %s: %s", u.Email, recv.Email, err)
-			log.Logger().Println(er)
-		} else if result.ModifiedCount != 1 {
-			_ = session.AbortTransaction(sc)
-			log.Logger().Printf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
-		}
-
-		result, er = datastore.MongoConn().Collection(userInvitesCollection).UpdateOne(
-			sc,
-			bson.D{
-				{Key: userIdField, Value: recv.ID},
-			},
-			bson.D{
-				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: string(received), Value: u.ID}}},
-			},
-		)
-		if er != nil {
-			_ = session.AbortTransaction(sc)
-			er = fmt.Errorf("sending invitation failed from %s to %s: %s", u.Email, recv.Email, err)
-			log.Logger().Print(er)
-		} else if result.ModifiedCount != 1 {
-			_ = session.AbortTransaction(sc)
-			reason := fmt.Sprintf("sending invitation failed from %s to %s as no doc modified", u.Email, recv.Email)
-			log.Logger().Println(reason)
-		}
-
-		// commit transaction
-		if er := session.CommitTransaction(sc); er != nil {
-			log.Logger().Printf("committing mongo transaction failed: %s", er)
-			er = session.AbortTransaction(sc)
-			if er != nil {
-				log.Logger().Printf("aborting mongo transaction failed: %s", er)
-			}
-		}
-		return
-	})
+	// commit transaction
+	//if er := session.CommitTransaction(sc); er != nil {
+	//	log.Logger().Printf("committing mongo transaction failed: %s", er)
+	//er = session.AbortTransaction(sc)
+	//if er != nil {
+	//	log.Logger().Printf("aborting mongo transaction failed: %s", er)
+	//}
+	//}
+	//return
+	//})
 	return
 }
 
@@ -443,107 +443,107 @@ func (u *User) AddFriend(userID primitive.ObjectID) (err error) {
 	// Delete the sent request from u's invites data (THINK OF SOFT DELETE) - Done
 	// Add u as u's friend
 	// Add u as u's
-	session, err := datastore.MongoConn().Client().StartSession()
+	//session, err := datastore.MongoConn().Client().StartSession()
+	//if err != nil {
+	//	log.Logger().Printf("initializing mongo session failed: %s", err)
+	//	return
+	//}
+	//
+	//err = session.StartTransaction()
+	//if err != nil {
+	//	log.Logger().Printf("initializing mongo transaction failed: %s", err)
+	//	return
+	//}
+
+	//err = mongo.WithSession(context.Background(), session, func(sc mongo.SessionContext) (er error) {
+	var res *mongo.UpdateResult
+	res, err = datastore.MongoConn().Collection(userInvitesCollection).UpdateOne(
+		context.Background(),
+		bson.M{userIdField: u.ID},
+		bson.D{
+			{Key: datastore.MongoPullOperator, Value: bson.D{{Key: string(received), Value: userID}}},
+		})
 	if err != nil {
-		log.Logger().Printf("initializing mongo session failed: %s", err)
+		//_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
+		if err == mongo.ErrNoDocuments {
+			log.Logger().Printf("invite data not found for invite accepting u %s", u.ID.String())
+		} else {
+			log.Logger().Printf("invite data fetch failed for invite accepting u %s: %s", u.ID.String(), err)
+		}
+		return
+	} else if res.ModifiedCount != 1 {
+		log.Logger().Printf("invite data not updated for invite accepting u %s", u.ID.String())
+		err = datastore.ErrNoDocUpdate
 		return
 	}
 
-	err = session.StartTransaction()
+	res, err = datastore.MongoConn().Collection(userInvitesCollection).UpdateOne(
+		context.Background(),
+		bson.M{userIdField: userID},
+		bson.D{
+			{Key: datastore.MongoPullOperator, Value: bson.D{{Key: string(sent), Value: u.ID}}},
+		})
 	if err != nil {
-		log.Logger().Printf("initializing mongo transaction failed: %s", err)
+		//_ = session.AbortTransaction(sc)
+		if err == mongo.ErrNoDocuments {
+			log.Logger().Printf("invite data not found for invite sending u %s", u.ID.String())
+		} else {
+			log.Logger().Printf("invite data fetch failed for invite sending u %s: %s", u.ID.String(), err)
+		}
+		return
+	} else if res.ModifiedCount != 1 {
+		log.Logger().Printf("invite data not updated for invite sending u %s", userID.String())
+		err = datastore.ErrNoDocUpdate
 		return
 	}
 
-	err = mongo.WithSession(context.Background(), session, func(sc mongo.SessionContext) (er error) {
-		var res *mongo.UpdateResult
-		res, er = datastore.MongoConn().Collection(userInvitesCollection).UpdateOne(
-			sc,
-			bson.M{userIdField: u.ID},
-			bson.D{
-				{Key: datastore.MongoPullOperator, Value: bson.D{{Key: string(received), Value: userID}}},
-			})
-		if er != nil {
-			_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
-			if er == mongo.ErrNoDocuments {
-				log.Logger().Printf("invite data not found for invite accepting u %s", u.ID.String())
-			} else {
-				log.Logger().Printf("invite data fetch failed for invite accepting u %s: %s", u.ID.String(), er)
-			}
-			return
-		} else if res.ModifiedCount != 1 {
-			log.Logger().Printf("invite data not updated for invite accepting u %s", u.ID.String())
-			er = datastore.ErrNoDocUpdate
-			return
-		}
-
-		res, er = datastore.MongoConn().Collection(userInvitesCollection).UpdateOne(
-			sc,
-			bson.M{userIdField: userID},
-			bson.D{
-				{Key: datastore.MongoPullOperator, Value: bson.D{{Key: string(sent), Value: u.ID}}},
-			})
-		if er != nil {
-			_ = session.AbortTransaction(sc)
-			if er == mongo.ErrNoDocuments {
-				log.Logger().Printf("invite data not found for invite sending u %s", u.ID.String())
-			} else {
-				log.Logger().Printf("invite data fetch failed for invite sending u %s: %s", u.ID.String(), er)
-			}
-			return
-		} else if res.ModifiedCount != 1 {
-			log.Logger().Printf("invite data not updated for invite sending u %s", userID.String())
-			err = datastore.ErrNoDocUpdate
-			return
-		}
-
-		// using upsert: true to create the friends document if non-existent
-		res, er = datastore.MongoConn().Collection(friendsCollection).UpdateOne(
-			sc,
-			bson.M{userIdField: u.ID},
-			bson.D{
-				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: friendsField, Value: userID}}},
-			},
-			options.Update().SetUpsert(true))
-		if er != nil {
-			_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
-			log.Logger().Printf("error while adding %s as friend for %s: %s", userID.String(), u.ID.String(), er)
-			return
-		} else if res.ModifiedCount+res.UpsertedCount != 1 {
-			log.Logger().Printf("document not created/updated to add %s as friend for %s", userID.String(), u.ID.String())
-			err = datastore.ErrNoDocUpdate
-			return
-		}
-
-		// using upsert: true to create the friends document if non-existent
-		res, err = datastore.MongoConn().Collection(friendsCollection).UpdateOne(
-			sc,
-			bson.M{userIdField: userID},
-			bson.D{
-				{Key: datastore.MongoPushOperator, Value: bson.D{{Key: friendsField, Value: u.ID}}},
-			},
-			options.Update().SetUpsert(true))
-		if err != nil {
-			_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
-			log.Logger().Printf("error while adding %s as friend for %s: %s", u.ID.String(), userID.String(), err)
-			return
-		} else if res.ModifiedCount+res.UpsertedCount != 1 {
-			log.Logger().Printf("document not created/updated to add %s as friend for %s", u.ID.String(),
-				userID.String())
-			err = datastore.ErrNoDocUpdate
-			return
-		}
-
-		// commit transaction
-		if er := session.CommitTransaction(sc); er != nil {
-			log.Logger().Printf("committing mongo transaction failed: %s", er)
-			er = session.AbortTransaction(sc)
-			if er != nil {
-				log.Logger().Printf("aborting mongo transaction failed: %s", er)
-			}
-		}
+	// using upsert: true to create the friends document if non-existent
+	res, err = datastore.MongoConn().Collection(friendsCollection).UpdateOne(
+		context.Background(),
+		bson.M{userIdField: u.ID},
+		bson.D{
+			{Key: datastore.MongoPushOperator, Value: bson.D{{Key: friendsField, Value: userID}}},
+		},
+		options.Update().SetUpsert(true))
+	if err != nil {
+		//_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
+		log.Logger().Printf("error while adding %s as friend for %s: %s", userID.String(), u.ID.String(), err)
 		return
-	})
+	} else if res.ModifiedCount+res.UpsertedCount != 1 {
+		log.Logger().Printf("document not created/updated to add %s as friend for %s", userID.String(), u.ID.String())
+		err = datastore.ErrNoDocUpdate
+		return
+	}
+
+	// using upsert: true to create the friends document if non-existent
+	res, err = datastore.MongoConn().Collection(friendsCollection).UpdateOne(
+		context.Background(),
+		bson.M{userIdField: userID},
+		bson.D{
+			{Key: datastore.MongoPushOperator, Value: bson.D{{Key: friendsField, Value: u.ID}}},
+		},
+		options.Update().SetUpsert(true))
+	if err != nil {
+		//_ = session.AbortTransaction(sc) // ROLLBACK at the earliest to shorten transaction life-cycle
+		log.Logger().Printf("error while adding %s as friend for %s: %s", u.ID.String(), userID.String(), err)
+		return
+	} else if res.ModifiedCount+res.UpsertedCount != 1 {
+		log.Logger().Printf("document not created/updated to add %s as friend for %s", u.ID.String(),
+			userID.String())
+		err = datastore.ErrNoDocUpdate
+		return
+	}
+
+	// commit transaction
+	//if er := session.CommitTransaction(sc); er != nil {
+	//	log.Logger().Printf("committing mongo transaction failed: %s", er)
+	//	er = session.AbortTransaction(sc)
+	//	if er != nil {
+	//		log.Logger().Printf("aborting mongo transaction failed: %s", er)
+	//	}
+	//}
+	//return
+	//})
 	return
 }
 
